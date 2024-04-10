@@ -55,4 +55,14 @@ export default initCollection(DwcPlugin, [
             "./OnScreenKeyboard/index"
         )
     },
+	{
+        id: "ScanningProbe",
+        name: "Scanning Probe",
+        author: "Markus Yeo",
+        version: "0.0.1",
+        loadDwcResources: () => import(
+            /* webpackChunkName: "ScanningProbe" */
+            "./ScanningProbe/index"
+        )
+    },
 ]);
