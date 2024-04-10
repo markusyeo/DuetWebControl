@@ -78,12 +78,13 @@
           <!-- Configuration -->
           <v-window-item value="config">
             <div class="d-flex flex-column">
-              Here you can define various parameters to use for calibrating the
-              scanning probe.
+              Set up parameters to be used in the calibration process.
+              <br />
               <v-divider class="mb-3" />
               <div>
                 <div class="text-subtitle-1">
-                  Select Scanning Probe Thermistor
+                  Select the default thermistor and bed heater to be used in the
+                  calibration process
                 </div>
                 <v-select
                   v-model="calibrationParams.selectedThermistor"
@@ -96,14 +97,14 @@
                   hide-details
                   :rules="thermistorRules()"
                 ></v-select>
-                <v-simple-table class="mt-1">
+                <v-simple-table class="mt-3">
                   <thead>
                     <tr>
                       <th class="pl-0">Heater</th>
                       <th style="width: 20%">Start (°C)</th>
                       <th style="width: 20%">Stop (°C)</th>
                       <th style="width: 20%">Step (°C)</th>
-                      <th style="width: 10%" class="pr-0"></th>
+                      <th style="width: 5%" class="pr-0"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -157,7 +158,7 @@
                           hide-details
                         ></v-text-field>
                       </td>
-                      <td style="width: 10%" class="pr-0">
+                      <td style="width: 5%" class="pr-0">
                         <v-btn
                           color="warning"
                           :disabled="calibrationParams.heaters.length <= 1"
@@ -170,26 +171,109 @@
                     </tr>
                   </tbody>
                 </v-simple-table>
+              </div>
+              <v-divider class="mt-3" />
+              <v-checkbox
+                v-model="showChamberHeatersConfig"
+                label="Add a Chamber Heater to the calibration process"
+              ></v-checkbox>
+              <div v-if="showChamberHeatersConfig">
+                <v-simple-table class="mt-1">
+                  <thead>
+                    <tr>
+                      <th class="pl-0">Heater</th>
+                      <th style="width: 20%">Start (°C)</th>
+                      <th style="width: 20%">Stop (°C)</th>
+                      <th style="width: 10%" class="pr-0"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(
+                        heater, index
+                      ) in calibrationParams.chamberHeaters"
+                      :key="`heater-${index}`"
+                    >
+                      <td class="px-0">
+                        <v-select
+                          v-model="heater.id"
+                          :items="availableHeatersFor(heater.id)"
+                          item-text="name"
+                          item-value="id"
+                          label="Heater"
+                          class="pt-0"
+                          hide-details
+                        ></v-select>
+                      </td>
+                      <td style="width: 20%">
+                        <v-text-field
+                          v-model="heater.start"
+                          type="number"
+                          :min="0"
+                          :max="getHeaterMaxTemp(heater.id)"
+                          class="pt-0"
+                          hide-details
+                          :rules="startTempRules(getHeaterMaxTemp(heater.id))"
+                        ></v-text-field>
+                      </td>
+                      <td style="width: 20%">
+                        <v-text-field
+                          v-model="heater.stop"
+                          type="number"
+                          :min="heater.start"
+                          :max="getHeaterMaxTemp(heater.id)"
+                          class="pt-0"
+                          hide-details
+                          :rules="
+                            stopTempRules(
+                              heater.start,
+                              getHeaterMaxTemp(heater.id)
+                            )
+                          "
+                        ></v-text-field>
+                      </td>
+                      <td style="width: 10%" class="pr-0">
+                        <v-btn
+                          color="warning"
+                          :disabled="calibrationParams.heaters.length <= 1"
+                          icon
+                          @click="removeChamberHeater(index)"
+                        >
+                          <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-simple-table>
                 <v-btn
                   color="blue darken-1"
                   class="mx-auto"
                   outlined
                   text
-                  @click="addHeater"
+                  @click="addChamberHeater"
                   :disabled="
-                    heaters.length === calibrationParams.heaters.length
+                    heaters.length >=
+                    calibrationParams.heaters.length +
+                      calibrationParams.chamberHeaters.length
                   "
                 >
                   <v-icon class="mr-1">mdi-plus</v-icon>
-                  Add Heater
+                  Add Chamber Heater
                 </v-btn>
-                <v-alert type="warning" dense class="mt-3">
+              </div>
+              <div>
+                <v-alert type="warning" dense>
                   You should enclose your printer if possible to help simulate
                   higher probe temperatures.
                 </v-alert>
-                <v-divider class="mb-3" />
                 <!-- Fan calbiration params -->
-
+              </div>
+              <v-divider class="mt-3" />
+              <v-checkbox
+                v-model="showFanConfig"
+                label="Add a Fan to the calibration process"
+              ></v-checkbox>
+              <div v-if="showFanConfig">
                 <v-simple-table class="mt-1">
                   <thead>
                     <tr>
@@ -244,9 +328,9 @@
                   Add Fan
                 </v-btn>
               </div>
-              <v-divider class="mb-3" />
+              <v-divider class="mt-3" />
 
-              <v-alert dense text class="my-3">
+              <v-alert dense text>
                 The machine will calculate new temperature coefficients as soon
                 as Next is clicked.
               </v-alert>
@@ -379,8 +463,39 @@ export default {
         case "start":
           return this.probes.length > 0;
         case "config":
-        // Write some test cases to ensure that the min/max temps
-        // are within the range of the heater
+          const isThermistorSelected =
+            !!this.calibrationParams.selectedThermistor;
+          const heatersValid = this.calibrationParams.heaters.every(
+            (heater) =>
+              heater.id !== null &&
+              heater.start < heater.stop &&
+              heater.start >= 0 &&
+              heater.stop <= this.getHeaterMaxTemp(heater.id) &&
+              heater.step > 0
+          );
+          let chamberHeatersValid = true;
+          if (this.showChamberHeatersConfig) {
+            chamberHeatersValid = this.calibrationParams.chamberHeaters.every(
+              (heater) =>
+                heater.id !== null &&
+                heater.start < heater.stop &&
+                heater.start >= 0 &&
+                heater.stop <= this.getHeaterMaxTemp(heater.id)
+            );
+          }
+          let fansValid = true;
+          if (this.showFanConfig) {
+            fansValid = this.calibrationParams.fans.every(
+              (fan) => fan.id !== null && fan.speed >= 0 && fan.speed <= 255
+            );
+          }
+
+          return (
+            isThermistorSelected &&
+            heatersValid &&
+            chamberHeatersValid &&
+            fansValid
+          );
       }
       return false;
     },
@@ -388,9 +503,12 @@ export default {
   data() {
     return {
       currentPage: "start",
+      showChamberHeatersConfig: false,
+      showFanConfig: false,
       calibrationParams: {
         thermistor: null,
-        heaters: [{ id: null, start: null, stop: null, step: 10 }],
+        heaters: [{ id: null, start: null, stop: null, step: null }],
+        chamberHeaters: [{ id: null, start: null, stop: null }],
         fans: [{ id: null, speed: 0 }],
       },
       run: 0,
@@ -439,9 +557,13 @@ export default {
       return remainingFans;
     },
     availableHeatersFor(heaterId) {
-      const selectedHeaterIds = this.calibrationParams.heaters
+      const selectedHeaters = this.calibrationParams.heaters
         .map((heater) => heater.id)
         .filter((id) => id != heaterId);
+      const selectedChamberHeaters = this.calibrationParams.chamberHeaters
+        .map((heater) => heater.id)
+        .filter((id) => id != heaterId);
+      const selectedHeaterIds = selectedHeaters.concat(selectedChamberHeaters);
       const remainingHeaters = this.heat.heaters
         .map((heater, index) => ({
           ...heater,
@@ -509,8 +631,8 @@ export default {
           break;
       }
     },
-    addHeater() {
-      this.calibrationParams.heaters.push({
+    addChamberHeater() {
+      this.calibrationParams.chamberHeaters.push({
         id: null,
         start: null,
         stop: null,
@@ -522,8 +644,8 @@ export default {
       this.calibrationParams.fans.push({ id: null, speed: 0 });
       console.log("After adding:", this.calibrationParams.fans);
     },
-    removeHeater(index) {
-      this.calibrationParams.heaters.splice(index, 1);
+    removeChamberHeater(index) {
+      this.calibrationParams.chamberHeaters.splice(index, 1);
     },
     removeFan(index) {
       this.calibrationParams.fans.splice(index, 1);
