@@ -342,20 +342,21 @@
             <v-container>
               <div v-if="!finished">
                 <h2>Calibration in Progress</h2>
-                <div v-for="(temp, index) in calculateTemps()" :key="index">
-                  <p>
-                    {{ index }}
-                    Current Temp:
-                    {{ getHeaterTemp(temp[0]) }}°C Target Temp: {{ temp[1] }}°C
-                  </p>
-                </div>
+                <v-data-table
+                  :headers="calibrationTableHeaders"
+                  :items="calibrationProgress"
+                  hide-default-footer
+                >
+                  <template v-slot:item="{ item }">
+                    <td>{{ item.index }}</td>
+                    <td>Current Temp: {{ item.currentTemp }}°C</td>
+                    <td>Target Temp: {{ item.targetTemp }}°C</td>
+                    <td>Time Elapsed: {{ item.timeElapsed }}</td>
+                  </template>
+                </v-data-table>
                 <p v-if="!cancelled">
                   Waiting for temperature stabilization...
                 </p>
-                <!-- 
-                Include a timer here to show the time taken to calibrate the scanning probe
-                <v-timer />?? maybe
-            -->
                 <!-- Display the current move being recorded -->
                 <v-btn color="red" v-if="!cancelled" @click="cancel"
                   >Cancel</v-btn
@@ -541,6 +542,16 @@ export default {
       elapsedTime: 0, // in milliseconds
       measurementDeltaTime: 1000,
       totalDuration: 60000,
+
+      calibrationTableHeaders: [
+        { text: "Index", align: "start", sortable: false, value: "index" },
+        { text: "Current Temp", value: "currentTemp" },
+        { text: "ScanningProbe Temp", value: "scanningProbeTemp" },
+        { text: "ScanningProbe Value", value: "scanningProbeValue" },
+        { text: "Target Temp", value: "targetTemp" },
+        { text: "Time Elapsed", value: "timeElapsed" },
+      ],
+      calibrationProgress: [],
     };
   },
   methods: {
@@ -580,6 +591,22 @@ export default {
       }
 
       this.finishMeasurement();
+    },
+    getTimeElapsed(index) {
+      // Calculate the time elapsed for the current target temperature
+      if (index === 0) {
+        return this.formatTime(Date.now() - this.startTime);
+      } else {
+        const prevTimeElapsed = this.calibrationProgress[index - 1].timeElapsed;
+        const currentTime = Date.now();
+        const prevTime = this.startTime + prevTimeElapsed;
+        return this.formatTime(currentTime - prevTime);
+      }
+    },
+    formatTime(time) {
+      const minutes = Math.floor(time / (1000 * 60));
+      const seconds = Math.floor((time % (1000 * 60)) / 1000);
+      return `${minutes}m ${seconds}s`;
     },
     record() {
       this.calibrationValues = [];
@@ -647,7 +674,22 @@ export default {
           Number(heater.stop)
         )
       );
-      return temps.map((temp) => [heater.id, temp]);
+
+      // Construct an array of objects containing the index, current temperature,
+      // target temperature, and time elapsed
+      const calibrationProgress = temps.map((temp, index) => {
+        return {
+          index: index,
+          currentTemp: null,
+          scanningProbeTemp: null,
+          scanningProbeValue: null,
+          targetTemp: temp,
+          timeElapsed: null,
+        };
+      });
+
+      // Set the table data
+      this.calibrationProgress = calibrationProgress;
     },
     plotProbeValues() {},
     calculateTemperatureCoefficients() {
