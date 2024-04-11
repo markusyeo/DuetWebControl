@@ -109,7 +109,7 @@
                   </thead>
                   <tbody>
                     <tr
-                      v-for="(heater, index) in calibrationParams.heaters"
+                      v-for="(heater, index) in calibrationParams.bedHeater"
                       :key="`heater-${index}`"
                     >
                       <td class="px-0">
@@ -161,7 +161,7 @@
                       <td style="width: 5%" class="pr-0">
                         <v-btn
                           color="warning"
-                          :disabled="calibrationParams.heaters.length <= 1"
+                          :disabled="calibrationParams.bedHeater.length <= 1"
                           icon
                           @click="removeHeater(index)"
                         >
@@ -235,7 +235,7 @@
                       <td style="width: 10%" class="pr-0">
                         <v-btn
                           color="warning"
-                          :disabled="calibrationParams.heaters.length <= 1"
+                          :disabled="calibrationParams.bedHeater.length <= 1"
                           icon
                           @click="removeChamberHeater(index)"
                         >
@@ -253,7 +253,7 @@
                   @click="addChamberHeater"
                   :disabled="
                     heaters.length >=
-                    calibrationParams.heaters.length +
+                    calibrationParams.bedHeater.length +
                       calibrationParams.chamberHeaters.length
                   "
                 >
@@ -339,14 +339,33 @@
 
           <!-- Data Collection -->
           <v-window-item value="calibration">
-            <span v-show="!finished">
-              Please wait while the probe is being calibrated...
-            </span>
-            <!-- 
+            <v-container>
+              <div v-if="!finished">
+                <h2>Calibration in Progress</h2>
+                <div v-for="(temp, index) in calculateTemps()" :key="index">
+                  <p>
+                    {{ index }}
+                    Current Temp:
+                    {{ getHeaterTemp(temp[0]) }}°C Target Temp: {{ temp[1] }}°C
+                  </p>
+                </div>
+                <p v-if="!cancelled">
+                  Waiting for temperature stabilization...
+                </p>
+                <!-- 
                 Include a timer here to show the time taken to calibrate the scanning probe
                 <v-timer />?? maybe
             -->
-            <!-- Display the current move being recorded -->
+                <!-- Display the current move being recorded -->
+                <v-btn color="red" v-if="!cancelled" @click="cancel"
+                  >Cancel</v-btn
+                >
+              </div>
+              <div v-else>
+                <h2>Calibration Finished</h2>
+                <!-- Display calibration results or next steps -->
+              </div>
+            </v-container>
             <v-divider />
 
             <v-alert :value="cancelled" dense text type="error" class="mt-3">
@@ -465,7 +484,7 @@ export default {
         case "config":
           const isThermistorSelected =
             !!this.calibrationParams.selectedThermistor;
-          const heatersValid = this.calibrationParams.heaters.every(
+          const heatersValid = this.calibrationParams.bedHeater.every(
             (heater) =>
               heater.id !== null &&
               heater.start < heater.stop &&
@@ -507,13 +526,21 @@ export default {
       showFanConfig: false,
       calibrationParams: {
         thermistor: null,
-        heaters: [{ id: null, start: null, stop: null, step: null }],
+        bedHeater: [{ id: null, start: null, stop: null, step: null }],
         chamberHeaters: [{ id: null, start: null, stop: null }],
         fans: [{ id: null, speed: 0 }],
       },
       run: 0,
+
       finished: false,
       cancelled: false,
+
+      calibrationValues: [],
+      measurementInterval: null,
+      totalDurationTimer: null,
+      elapsedTime: 0, // in milliseconds
+      measurementDeltaTime: 1000,
+      totalDuration: 60000,
     };
   },
   methods: {
@@ -522,6 +549,123 @@ export default {
       const reply = await this.sendCode(code);
       if (reply.indexOf("Error") === 0) {
         throw new Error(`Code ${code} failed: ${reply}`);
+      }
+    },
+    async startMeasurement() {
+      this.resetMeasurement();
+
+      const temps = this.calculateTemps();
+      let prevTime = Date.now();
+      for (let i = 0; i < temps.length; i++) {
+        const [heaterId, temp] = temps[i];
+        // Enable the bed heater with the current temperature
+        await this.enableHeater(heaterId, temp);
+
+        // Measure the time until the temperature stabilizes
+        let currTime;
+        do {
+          currTime = Date.now();
+          await this.delay(1000); // Check every second
+        } while (
+          !this.isTemperatureStable(heaterId) &&
+          currTime - prevTime < 300000
+        ); // Max 5 minutes wait
+
+        if (currTime - prevTime >= 300000) {
+          console.log("Temperature did not stabilize within 5 minutes.");
+          break; // Break out of the loop if temperature doesn't stabilize within 5 minutes
+        }
+
+        prevTime = currTime;
+      }
+
+      this.finishMeasurement();
+    },
+    record() {
+      this.calibrationValues = [];
+      this.finished = false;
+      this.cancelled = false;
+      this.run++;
+    },
+    home() {
+      this.doCode("G28");
+    },
+    getScanningProbeTriggerHeight(probeIndex) {
+      return this.probes[probeIndex].getScanningProbeTriggerHeight;
+    },
+    getScanningProbeTemp() {
+      return this.thermistors[this.thermistor.index].value;
+    },
+    getScanningProbeValue(probeIndex) {
+      return this.probes[probeIndex].value;
+    },
+    recordProbeValue(probeIndex) {
+      const currentTargetBedTemp =
+        heaters[this.calibrationParams.bedHeater[0].id].active;
+      // Turning off bed heater
+      this.disableBedHeater();
+      // recording the current probe's value
+      const currentProbeValue = getScanningProbeValue(probeIndex);
+      const currentProbeTemp = getScanningProbeTemp();
+      // Setting all heaters to their target temperature
+      this.enableHeater(
+        this.calibrationParams.bedHeater[0],
+        currentTargetBedTemp
+      );
+
+      // Values recorded are of the form (Scanning Probe Temp, Scanning Probe Value)
+      this.calibrationValues.push([currentProbeTemp, currentProbeValue]);
+    },
+    getHeaterTemp(heaterId) {
+      return this.heaters[heaterId].current;
+    },
+    disableBedHeater() {
+      const heaters = this.calibrationParams.bedHeater;
+      for (const heater of heaters) {
+        sendCode(`M104 H${heater.id} S0`);
+      }
+    },
+    enableHeater(heaterId, temp) {
+      sendCode(`M104 H${heaterId} S${temp}`);
+    },
+    checkHeaterTemp(heaterId) {
+      this.heaters.forEach((heater) => {
+        if (heater.id === heaterId) {
+          return heater.current;
+        }
+      });
+    },
+    calculateTemps() {
+      // Based on the steps, calculate the temperatures to be used
+      const heater = this.calibrationParams.bedHeater[0]; // Bed heater
+      const n = Math.ceil(
+        (Number(heater.stop) - Number(heater.start)) / Number(heater.step)
+      );
+      const temps = Array.from({ length: n }, (_, i) =>
+        Math.min(
+          Number(heater.start) + i * Number(heater.step),
+          Number(heater.stop)
+        )
+      );
+      return temps.map((temp) => [heater.id, temp]);
+    },
+    plotProbeValues() {},
+    calculateTemperatureCoefficients() {
+      // Calculate the temperature coefficients using the recorded values
+    },
+    saveProbeCalibration() {
+      // Save the calculated temperature coefficients to the scanning probe
+    },
+    enableFans() {
+      const fans = this.calibrationParams.fans;
+      for (const fan of fans) {
+        sendCode(`M106 P${fan.id} S${fan.speed}`);
+      }
+    },
+    disableFans() {
+      const fans = this.calibrationParams.fans;
+      for (const fan of fans) {
+        sendCode(`M106 P${fan.id} S0`);
       }
     },
     thermistorRules() {
@@ -535,6 +679,7 @@ export default {
       ];
     },
     stopTempRules(startValue, maxTemp) {
+      console.log(maxTemp);
       return [
         (v) => (v !== null && v !== "") || "Stop temperature is required",
         (v) =>
@@ -557,7 +702,7 @@ export default {
       return remainingFans;
     },
     availableHeatersFor(heaterId) {
-      const selectedHeaters = this.calibrationParams.heaters
+      const selectedHeaters = this.calibrationParams.bedHeater
         .map((heater) => heater.id)
         .filter((id) => id != heaterId);
       const selectedChamberHeaters = this.calibrationParams.chamberHeaters
@@ -571,7 +716,6 @@ export default {
           id: index,
         }))
         .filter((heater) => !selectedHeaterIds.includes(heater.id));
-      console.log("remainingHeaters", remainingHeaters);
       return remainingHeaters;
     },
     getHeaterMaxTemp(heaterId) {
