@@ -338,62 +338,95 @@
           <!-- Data Collection -->
           <v-window-item value="calibration">
             <v-container>
-              <div v-if="!calibrationStarted">
-                <h2>Calibration Overview</h2>
+              <v-alert
+                dense
+                text
+                :type="allAxesHomed || isBusy ? 'success' : 'warning'"
+                class="mb-3"
+              >
+                <v-row align="center">
+                  <v-col>
+                    {{
+                      allAxesHomed
+                        ? "Machine is homed and ready for calibration!"
+                        : "Machine is not homed! Home it before starting calibration."
+                    }}
+                  </v-col>
+
+                  <v-col class="shrink">
+                    <v-btn small v-if="!allAxesHomed" @click="homeMachine">
+                      <v-icon left>mdi-home</v-icon> Home Machine
+                    </v-btn>
+                  </v-col>
+
+                  <v-col class="shrink">
+                    <v-progress-circular
+                      v-if="isBusy"
+                      indeterminate
+                      color="blue"
+                      size="24"
+                    >
+                    </v-progress-circular>
+                  </v-col>
+                </v-row>
+              </v-alert>
+            </v-container>
+
+            <v-container>
+              <div v-if="!finished">
+                <h2>Calibration in Progress</h2>
                 <v-data-table
                   :headers="calibrationTableHeaders"
                   :items="calibrationProgress"
                   hide-default-footer
+                  dense
                 >
                   <template v-slot:item="{ item }">
                     <tr>
                       <td class="pa-3 text-left">{{ item.index }}</td>
-                      <td></td>
+                      <td
+                        class="pa-3 text-left"
+                        v-if="item.currentTemp == null"
+                      ></td>
+                      <td class="pa-3 text-left" v-else>
+                        Current Temp: {{ item.currentTemp }}°C
+                      </td>
                       <td class="pa-3 text-left">
                         Target Temp: {{ item.targetTemp }}°C
                       </td>
-                      <td></td>
+                      <td
+                        class="pa-3 text-left"
+                        v-if="item.timeElapsed == null"
+                      ></td>
+                      <td class="pa-3 text-left" v-else>
+                        Time Elapsed: {{ item.timeElapsed }}
+                      </td>
                     </tr>
                   </template>
                 </v-data-table>
-                <v-btn color="blue darken-1" @click="startCalibration"
-                  >Start Calibration</v-btn
-                >
-                <v-btn color="gray" @click="goBack"
-                  >Go Back to Configuration</v-btn
-                >
-              </div>
-              <div v-else>
-                <div v-if="!finished">
-                  <h2>Calibration in Progress</h2>
-                  <v-data-table
-                    :headers="calibrationTableHeaders"
-                    :items="calibrationProgress"
-                    hide-default-footer
+                <div v-if="!calibrationStarted">
+                  <v-alert type="info" dense>
+                    Press the button below to start the calibration process.
+                  </v-alert>
+                  <v-btn color="blue darken-1" @click="startCalibration"
+                    >Start Calibration</v-btn
                   >
-                    <template v-slot:item="{ item }">
-                      <tr>
-                        <td class="pa-3 text-left">{{ item.index }}</td>
-                        <td class="pa-3 text-left">
-                          Current Temp: {{ item.currentTemp ?? 0 }}°C
-                        </td>
-                        <td class="pa-3 text-left">
-                          Target Temp: {{ item.targetTemp }}°C
-                        </td>
-                        <td class="pa-3 text-left">
-                          Time Elapsed: {{ item.timeElapsed ?? 0 }}
-                        </td>
-                      </tr>
-                    </template>
-                  </v-data-table>
+                  <v-btn color="gray" @click="goBack"
+                    >Go Back to Configuration</v-btn
+                  >
+                </div>
+                <div v-else>
+                  <v-alert type="info" dense>
+                    Calibration in progress. Please wait...
+                  </v-alert>
                   <v-btn color="red" v-if="!cancelled" @click="cancel"
                     >Cancel Calibration</v-btn
                   >
                 </div>
-                <div v-else>
-                  <h2>Calibration Finished</h2>
-                  <!-- Display calibration results or next steps -->
-                </div>
+              </div>
+              <div v-else>
+                <h2>Calibration Finished</h2>
+                <!-- Display calibration results or next steps -->
               </div>
             </v-container>
             <v-divider />
@@ -460,7 +493,14 @@ export default {
   },
   computed: {
     // Internal computed properties
-    ...mapState("machine/model", ["sensors", "tools", "fans", "heat"]),
+    ...mapState("machine/model", [
+      "sensors",
+      "move",
+      "tools",
+      "fans",
+      "heat",
+      "state",
+    ]),
     shownInternal: {
       get() {
         return this.shown;
@@ -468,6 +508,9 @@ export default {
       set(value) {
         this.$emit("update:shown", value);
       },
+    },
+    isBusy() {
+      return this.state.status === MachineStatus.busy;
     },
     hasMultipleScanningProbes() {
       return this.probes.length > 1;
@@ -565,11 +608,7 @@ export default {
       cancelled: false,
 
       calibrationValues: [],
-      measurementInterval: null,
-      totalDurationTimer: null,
       elapsedTime: 0, // in milliseconds
-      measurementDeltaTime: 1000,
-      totalDuration: 60000,
 
       calibrationTableHeaders: [
         { text: "Index", align: "start", sortable: false, value: "index" },
@@ -587,13 +626,16 @@ export default {
         throw new Error(`Code ${code} failed: ${reply}`);
       }
     },
+    homeMachine() {
+      this.doCode("G28");
+    },
     populateCalibrationProgress() {
       const temps = this.calculateTemps();
       this.calibrationProgress = temps.map((targetTemp, index) => ({
         index,
         currentTemp: null,
         targetTemp,
-        timeElapsed: "0m 0s",
+        timeElapsed: null,
       }));
       console.log(this.calibrationProgress);
     },
@@ -602,6 +644,7 @@ export default {
       this.startMeasurement(); // Initiate the calibration process
     },
     async startMeasurement() {
+      const probeIndex =
       const temps = this.calibrationProgress.map((item) => item.targetTemp);
       // Form the data required in the table
       for (let i = 0; i < temps.length; i++) {
@@ -611,32 +654,27 @@ export default {
           targetTemp
         );
 
-        // Wait for stabilization
-        const stabilizationTimeout = 300000; // 5 minutes
         let isStable = false;
-        let elapsedTime = 0;
-        while (!isStable && elapsedTime < stabilizationTimeout) {
+        while (!isStable) {
           isStable = this.isTemperatureStable(
             this.calibrationParams.bedHeater[0].id
           );
           if (!isStable) {
             await this.delay(1000); // Check every second
-            elapsedTime += 1000;
             this.calibrationProgress[i].currentTemp = this.getHeaterTemp(
               this.calibrationParams.bedHeater[0].id
             );
           }
         }
 
-        if (!isStable) {
-          console.error("Temperature did not stabilize within 5 minutes.");
-          break;
-        }
-
         // Soak for 5 minutes
         const soakTime = 300000; // 5 minutes
-        await this.delay(soakTime);
-
+        this.elapsedTime = 0;
+        while (this.elapsedTime < soakTime) {
+          await this.delay(1000);
+          this.elapsedTime += 1000;
+          this.recordProbeValue()
+        }
         // Record the current temperature and other values
         this.calibrationProgress[i].currentTemp = this.getHeaterTemp(
           this.calibrationParams.bedHeater[0].id
@@ -695,25 +733,29 @@ export default {
       return this.probes[probeIndex].value;
     },
     recordProbeValue(probeIndex) {
-      const currentTargetBedTemp =
-        heaters[this.calibrationParams.bedHeater[0].id].active;
-      // Turning off bed heater
+      const heaterId = this.calibrationParams.bedHeater[0].id;
+      const currentTargetBedTemp = heaters[heaterId].active;
+
       this.disableBedHeater();
-      // recording the current probe's value
+
+      const currentBedTemp = getHeaterTemp(heaterId);
       const currentProbeValue = getScanningProbeValue(probeIndex);
       const currentProbeTemp = getScanningProbeTemp();
-      // Setting all heaters to their target temperature
-      this.enableHeater(
-        this.calibrationParams.bedHeater[0],
-        currentTargetBedTemp
-      );
 
-      // Values recorded are of the form (Scanning Probe Temp, Scanning Probe Value)
-      this.calibrationValues.push([currentProbeTemp, currentProbeValue]);
+      this.enableHeater(heaterId, currentTargetBedTemp);
+
+      this.calibrationValues.push([
+        currentBedTemp,
+        currentProbeTemp,
+        currentProbeValue,
+      ]);
     },
     getHeaterTemp(heaterId) {
       const heater = this.heaters.find((h) => h.id === heaterId);
       return heater ? heater.current : null;
+    },
+    enableHeater(heaterId, temp) {
+      sendCode(`M104 H${heaterId} S${temp}`);
     },
     disableBedHeater() {
       const heaters = this.calibrationParams.bedHeater;
@@ -721,8 +763,11 @@ export default {
         sendCode(`M104 H${heater.id} S0`);
       }
     },
-    enableHeater(heaterId, temp) {
-      sendCode(`M104 H${heaterId} S${temp}`);
+    enableFan(fanId, speed) {
+      sendCode(`M106 P${fanId} S${speed}`);
+    },
+    disableFan(fanId) {
+      this.enableFan(fanId, 0);
     },
     checkHeaterTemp(heaterId) {
       this.heaters.forEach((heater) => {
@@ -777,7 +822,6 @@ export default {
       ];
     },
     stopTempRules(startValue, maxTemp) {
-      console.log(maxTemp);
       return [
         (v) => (v !== null && v !== "") || "Stop temperature is required",
         (v) =>
@@ -827,23 +871,6 @@ export default {
       const maxTemp = this.getHeaterMaxTemp(heaterId);
       return `0-${maxTemp}`; // Constructing the label string
     },
-    getMoveFilename(move) {
-      let filename = this.run.toString();
-      if (move.tool) {
-        filename += "-T" + move.tool.number;
-      }
-      filename += `-${move.axis.replace(/\+/g, "")}${move.start}-${move.end}-${
-        move.accelerometer
-      }-${this.move.shaping.type}`;
-      if (
-        this.move.shaping.type !== "none" &&
-        this.move.shaping.type !== "custom"
-      ) {
-        filename += `-${this.move.shaping.frequency}Hz-${this.move.shaping.damping}`;
-      }
-      filename += ".csv";
-      return filename;
-    },
     getStateIcon(completed) {
       return completed ? "mdi-check" : "mdi-clock";
     },
@@ -858,6 +885,9 @@ export default {
       switch (this.currentPage) {
         case "config":
           this.currentPage = "start";
+          break;
+        case "calibration":
+          this.currentPage = "config";
           break;
       }
     },
@@ -883,9 +913,7 @@ export default {
       });
     },
     addFan() {
-      console.log("Before adding:", this.calibrationParams.fans);
       this.calibrationParams.fans.push({ id: null, speed: 0 });
-      console.log("After adding:", this.calibrationParams.fans);
     },
     removeChamberHeater(index) {
       this.calibrationParams.chamberHeaters.splice(index, 1);
