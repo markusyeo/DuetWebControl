@@ -93,7 +93,6 @@
                   item-value="id"
                   label="Thermistor"
                   class="mt-3"
-                  solo
                   hide-details
                   :rules="thermistorRules()"
                 ></v-select>
@@ -200,7 +199,7 @@
                           :items="availableHeatersFor(heater.id)"
                           item-text="name"
                           item-value="id"
-                          label="Heater"
+                          label="Bed Heater"
                           class="pt-0"
                           hide-details
                         ></v-select>
@@ -247,7 +246,7 @@
                 </v-simple-table>
                 <v-btn
                   color="blue darken-1"
-                  class="mx-auto"
+                  class="px-3 mt-3 mb-3"
                   outlined
                   text
                   @click="addChamberHeater"
@@ -268,7 +267,7 @@
                 </v-alert>
                 <!-- Fan calbiration params -->
               </div>
-              <v-divider class="mt-3" />
+              <v-divider class="mx-auto" />
               <v-checkbox
                 v-model="showFanConfig"
                 label="Add a Fan to the calibration process"
@@ -319,7 +318,7 @@
                 </v-simple-table>
                 <v-btn
                   color="blue darken-1"
-                  class="mx-auto"
+                  class="px-3 mt-3 mb-3"
                   outlined
                   text
                   @click="addFan"
@@ -328,8 +327,7 @@
                   Add Fan
                 </v-btn>
               </div>
-              <v-divider class="mt-3" />
-
+              <v-divider class="mx-auto" />
               <v-alert dense text>
                 The machine will calculate new temperature coefficients as soon
                 as Next is clicked.
@@ -340,31 +338,62 @@
           <!-- Data Collection -->
           <v-window-item value="calibration">
             <v-container>
-              <div v-if="!finished">
-                <h2>Calibration in Progress</h2>
+              <div v-if="!calibrationStarted">
+                <h2>Calibration Overview</h2>
                 <v-data-table
                   :headers="calibrationTableHeaders"
                   :items="calibrationProgress"
                   hide-default-footer
                 >
                   <template v-slot:item="{ item }">
-                    <td>{{ item.index }}</td>
-                    <td>Current Temp: {{ item.currentTemp }}°C</td>
-                    <td>Target Temp: {{ item.targetTemp }}°C</td>
-                    <td>Time Elapsed: {{ item.timeElapsed }}</td>
+                    <tr>
+                      <td class="pa-3 text-left">{{ item.index }}</td>
+                      <td></td>
+                      <td class="pa-3 text-left">
+                        Target Temp: {{ item.targetTemp }}°C
+                      </td>
+                      <td></td>
+                    </tr>
                   </template>
                 </v-data-table>
-                <p v-if="!cancelled">
-                  Waiting for temperature stabilization...
-                </p>
-                <!-- Display the current move being recorded -->
-                <v-btn color="red" v-if="!cancelled" @click="cancel"
-                  >Cancel</v-btn
+                <v-btn color="blue darken-1" @click="startCalibration"
+                  >Start Calibration</v-btn
+                >
+                <v-btn color="gray" @click="goBack"
+                  >Go Back to Configuration</v-btn
                 >
               </div>
               <div v-else>
-                <h2>Calibration Finished</h2>
-                <!-- Display calibration results or next steps -->
+                <div v-if="!finished">
+                  <h2>Calibration in Progress</h2>
+                  <v-data-table
+                    :headers="calibrationTableHeaders"
+                    :items="calibrationProgress"
+                    hide-default-footer
+                  >
+                    <template v-slot:item="{ item }">
+                      <tr>
+                        <td class="pa-3 text-left">{{ item.index }}</td>
+                        <td class="pa-3 text-left">
+                          Current Temp: {{ item.currentTemp ?? 0 }}°C
+                        </td>
+                        <td class="pa-3 text-left">
+                          Target Temp: {{ item.targetTemp }}°C
+                        </td>
+                        <td class="pa-3 text-left">
+                          Time Elapsed: {{ item.timeElapsed ?? 0 }}
+                        </td>
+                      </tr>
+                    </template>
+                  </v-data-table>
+                  <v-btn color="red" v-if="!cancelled" @click="cancel"
+                    >Cancel Calibration</v-btn
+                  >
+                </div>
+                <div v-else>
+                  <h2>Calibration Finished</h2>
+                  <!-- Display calibration results or next steps -->
+                </div>
               </div>
             </v-container>
             <v-divider />
@@ -430,6 +459,7 @@ export default {
     },
   },
   computed: {
+    // Internal computed properties
     ...mapState("machine/model", ["sensors", "tools", "fans", "heat"]),
     shownInternal: {
       get() {
@@ -451,9 +481,6 @@ export default {
         name: `Heater ${index}`,
         id: index,
       }));
-    },
-    availableFans() {
-      return this.fans;
     },
     probes() {
       const annotatedSensors = this.sensors.probes.map((sensor, index) => ({
@@ -533,6 +560,7 @@ export default {
       },
       run: 0,
 
+      calibrationStarted: false,
       finished: false,
       cancelled: false,
 
@@ -546,12 +574,9 @@ export default {
       calibrationTableHeaders: [
         { text: "Index", align: "start", sortable: false, value: "index" },
         { text: "Current Temp", value: "currentTemp" },
-        { text: "ScanningProbe Temp", value: "scanningProbeTemp" },
-        { text: "ScanningProbe Value", value: "scanningProbeValue" },
         { text: "Target Temp", value: "targetTemp" },
         { text: "Time Elapsed", value: "timeElapsed" },
       ],
-      calibrationProgress: [],
     };
   },
   methods: {
@@ -562,35 +587,78 @@ export default {
         throw new Error(`Code ${code} failed: ${reply}`);
       }
     },
-    async startMeasurement() {
-      this.resetMeasurement();
-
+    populateCalibrationProgress() {
       const temps = this.calculateTemps();
-      let prevTime = Date.now();
+      this.calibrationProgress = temps.map((targetTemp, index) => ({
+        index,
+        currentTemp: null,
+        targetTemp,
+        timeElapsed: "0m 0s",
+      }));
+      console.log(this.calibrationProgress);
+    },
+    async startCalibration() {
+      this.calibrationStarted = true; // Mark calibration as started
+      this.startMeasurement(); // Initiate the calibration process
+    },
+    async startMeasurement() {
+      const temps = this.calibrationProgress.map((item) => item.targetTemp);
+      // Form the data required in the table
       for (let i = 0; i < temps.length; i++) {
-        const [heaterId, temp] = temps[i];
-        // Enable the bed heater with the current temperature
-        await this.enableHeater(heaterId, temp);
+        const targetTemp = temps[i];
+        await this.enableHeater(
+          this.calibrationParams.bedHeater[0].id,
+          targetTemp
+        );
 
-        // Measure the time until the temperature stabilizes
-        let currTime;
-        do {
-          currTime = Date.now();
-          await this.delay(1000); // Check every second
-        } while (
-          !this.isTemperatureStable(heaterId) &&
-          currTime - prevTime < 300000
-        ); // Max 5 minutes wait
-
-        if (currTime - prevTime >= 300000) {
-          console.log("Temperature did not stabilize within 5 minutes.");
-          break; // Break out of the loop if temperature doesn't stabilize within 5 minutes
+        // Wait for stabilization
+        const stabilizationTimeout = 300000; // 5 minutes
+        let isStable = false;
+        let elapsedTime = 0;
+        while (!isStable && elapsedTime < stabilizationTimeout) {
+          isStable = this.isTemperatureStable(
+            this.calibrationParams.bedHeater[0].id
+          );
+          if (!isStable) {
+            await this.delay(1000); // Check every second
+            elapsedTime += 1000;
+            this.calibrationProgress[i].currentTemp = this.getHeaterTemp(
+              this.calibrationParams.bedHeater[0].id
+            );
+          }
         }
 
-        prevTime = currTime;
+        if (!isStable) {
+          console.error("Temperature did not stabilize within 5 minutes.");
+          break;
+        }
+
+        // Soak for 5 minutes
+        const soakTime = 300000; // 5 minutes
+        await this.delay(soakTime);
+
+        // Record the current temperature and other values
+        this.calibrationProgress[i].currentTemp = this.getHeaterTemp(
+          this.calibrationParams.bedHeater[0].id
+        );
+        this.calibrationProgress[i].timeElapsed = this.formatTime(
+          elapsedTime + soakTime
+        );
       }
 
-      this.finishMeasurement();
+      this.finished = true;
+    },
+    delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    },
+    isTemperatureStable(heaterId) {
+      const currentTemp = this.getHeaterTemp(heaterId);
+      const targetTemp = this.calibrationParams.bedHeater[0].id;
+      return Math.abs(currentTemp - targetTemp) < 1;
+    },
+    calibrationtemps() {},
+    calibrationProgress() {
+      const temps = this.calculateTemps();
     },
     getTimeElapsed(index) {
       // Calculate the time elapsed for the current target temperature
@@ -603,9 +671,9 @@ export default {
         return this.formatTime(currentTime - prevTime);
       }
     },
-    formatTime(time) {
-      const minutes = Math.floor(time / (1000 * 60));
-      const seconds = Math.floor((time % (1000 * 60)) / 1000);
+    formatTime(ms) {
+      const minutes = Math.floor(ms / (1000 * 60));
+      const seconds = Math.floor((ms % (1000 * 60)) / 1000);
       return `${minutes}m ${seconds}s`;
     },
     record() {
@@ -644,7 +712,8 @@ export default {
       this.calibrationValues.push([currentProbeTemp, currentProbeValue]);
     },
     getHeaterTemp(heaterId) {
-      return this.heaters[heaterId].current;
+      const heater = this.heaters.find((h) => h.id === heaterId);
+      return heater ? heater.current : null;
     },
     disableBedHeater() {
       const heaters = this.calibrationParams.bedHeater;
@@ -674,23 +743,10 @@ export default {
           Number(heater.stop)
         )
       );
-
-      // Construct an array of objects containing the index, current temperature,
-      // target temperature, and time elapsed
-      const calibrationProgress = temps.map((temp, index) => {
-        return {
-          index: index,
-          currentTemp: null,
-          scanningProbeTemp: null,
-          scanningProbeValue: null,
-          targetTemp: temp,
-          timeElapsed: null,
-        };
-      });
-
-      // Set the table data
-      this.calibrationProgress = calibrationProgress;
+      return temps;
     },
+    // This is for deciding the values to be used fo the probe
+    // Bassed on the recorded values
     plotProbeValues() {},
     calculateTemperatureCoefficients() {
       // Calculate the temperature coefficients using the recorded values
@@ -814,6 +870,7 @@ export default {
           this.currentPage = "calibration";
           this.cancelled = false;
           this.record();
+          this.populateCalibrationProgress();
           break;
       }
     },
