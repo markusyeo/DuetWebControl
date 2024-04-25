@@ -559,6 +559,16 @@ export default {
           value: tool,
         }));
     },
+    getHeaterMaxTemp() {
+      return (heaterId) => {
+        console.log("checking max temp for heater", heaterId);
+        if (heaterId === null || heaterId === undefined) {
+          return 0;
+        }
+        const heaters = this.heat.heaters;
+        return heaters[heaterId].max;
+      };
+    },
     //
     // Booleans
     //
@@ -636,6 +646,22 @@ export default {
     },
     thermistorIsRequired() {
       return [(v) => v !== null || "A thermistor must be selected."];
+    },
+    startTempRules() {
+      return (maxTemp) => [
+        (v) => (v !== null && v !== "") || "Start temperature is required",
+        (v) => Number(v) >= 0 || "Start temperature must be >= 0",
+        (v) =>
+          Number(v) <= maxTemp || `Start temperature must be <= ${maxTemp}`,
+      ];
+    },
+    stopTempRules() {
+      return (start, maxTemp) => [
+        (v) => (v !== null && v !== "") || "Stop temperature is required",
+        (v) =>
+          Number(v) >= start || "Stop temperature must be >= start temperature",
+        (v) => Number(v) <= maxTemp || `Stop temperature must be <= ${maxTemp}`,
+      ];
     },
   },
   data() {
@@ -721,13 +747,6 @@ export default {
         .filter((id) => id != fanId);
       const allFans = this.fans;
       return this.getAvailableItems(allFans, selectedFanIds);
-    },
-    getHeaterMaxTemp(heaterId) {
-      if (heaterId === null || heaterId === undefined) {
-        return 0;
-      }
-      const heaters = this.heat.heaters;
-      return heaters[heaterId].max;
     },
     getHeaterLabel(heaterId) {
       const maxTemp = this.getHeaterMaxTemp(heaterId);
@@ -876,7 +895,6 @@ export default {
       this.calibrationProgress[index].status = status;
     },
     async waitForStabilization(bedHeaterId, targetTemp, probeId, i) {
-      console.log("WaitForStabilization");
       let isStable = false;
       await this.enableBedHeater(targetTemp);
       // Wait until the bed heater reaches target temp
@@ -891,7 +909,6 @@ export default {
       }
     },
     async soakAtTargetTemperature(bedHeaterId, probeId, i) {
-      console.log("SoakAtTargetTemperature");
       const soakStartTime = Date.now();
       const totalSoakTime = 300000; // 5 minutes in milliseconds
 
@@ -983,25 +1000,6 @@ export default {
     getHeaterTemp(heaterId) {
       const heater = this.heaters.find((h) => h.id === heaterId);
       return heater ? heater.current : null;
-    },
-    //
-    // Rules
-    //
-    startTempRules(maxTemp) {
-      return [
-        (v) => (v !== null && v !== "") || "Start temperature is required",
-        (v) => v >= 0 || "Start temperature must be >= 0",
-        (v) => v < maxTemp || `Start temperature must be < ${maxTemp}`,
-      ];
-    },
-    stopTempRules(startValue, maxTemp) {
-      return [
-        (v) => (v !== null && v !== "") || "Stop temperature is required",
-        (v) =>
-          v >= startValue ||
-          "Stop temperature must be greater than start temperature.",
-        (v) => v <= maxTemp || `Stop temperature must be <= ${maxTemp}`,
-      ];
     },
     //
     // Page operations
@@ -1102,6 +1100,10 @@ export default {
         this.calibrationParams.selectedTool = newTools[0];
       }
     },
+    bedHeaters(newHeaters) {
+      if (newHeaters.length === 1) {
+        this.calibrationParams.bedHeater[0].id = newHeaters[0].id;
+      }
   },
 };
 </script>
