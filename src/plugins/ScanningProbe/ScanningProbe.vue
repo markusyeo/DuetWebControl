@@ -70,16 +70,13 @@ th {
         </v-tabs-items>
       </v-card>
     </v-col>
-    <calibrate-scanning-probe-dialog
-      :shown.sync="showCalibrationDialog"
-      @finished="recordingFinished"
-    />
+    <calibrate-scanning-probe-dialog :shown.sync="showCalibrationDialog" />
   </v-row>
 </template>
 
 <script>
 import ProbeValuesChart from "./ProbeValuesChart.vue";
-import {mapGetters} from "vuex";
+import { mapGetters } from "vuex";
 import CalibrateScanningProbeDialog from "./CalibrateScanningProbeDialog.vue";
 import store from "@/store";
 
@@ -109,7 +106,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(['isConnected', 'uiFrozen']),
+    ...mapGetters(["isConnected", "uiFrozen"]),
     isScanningProbePresent() {
       return true;
       // return checkScanningProbePresent();

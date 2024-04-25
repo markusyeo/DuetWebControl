@@ -116,7 +116,7 @@
                       v-model="calibrationParams.selectedThermistor"
                       :items="thermistors"
                       item-text="name"
-                      item-value="id"
+                      item-value="index"
                       label="Select Scanning Probe Thermistor"
                       class="mb-1"
                       hide-details
@@ -568,6 +568,17 @@ export default {
     //
     // Getters
     //
+    filterHeaterIds(entries) {
+      return Object.entries(entries)
+        .filter(([, id]) => id !== -1)
+        .map(([, id]) => id);
+    },
+    bedHeatersIds() {
+      return this.filterHeaterIds(this.heat.bedHeaters);
+    },
+    chamberHeaterIds() {
+      return this.filterHeaterIds(this.heat.chamberHeaters);
+    },
     heaters() {
       return this.heat.heaters.map((heater, index) => ({
         ...heater,
@@ -583,7 +594,10 @@ export default {
       return annotatedSensors.filter((sensor) => sensor.type == 11);
     },
     thermistors() {
-      return this.sensors.analog;
+      return this.sensors.analog.map((sensor, index) => ({
+        ...sensor,
+        index: index,
+      }));
     },
     toolList() {
       return this.tools
@@ -714,7 +728,7 @@ export default {
           this.probes[0].index;
       }
       if (this.thermistors.length === 1) {
-        this.calibrationParams.selectedThermistor = this.thermistors[0].id;
+        this.calibrationParams.selectedThermistor = this.thermistors[0].index;
       }
       if (this.toolList.length === 1) {
         this.calibrationParams.selectedTool = this.toolList[0].value;
@@ -797,59 +811,55 @@ export default {
         throw new Error(`Code ${code} failed: ${reply}`);
       }
     },
-    homeMachine() {
+    async homeMachine() {
       // Need to include the toolId mapping to the homing probe
-      this.doCode("G28");
+      await this.doCode("G28");
     },
-    enableHeater(heaterId, temp) {
-      this.doCode(`M104 H${heaterId} S${temp}`);
+    async enableHeater(heaterId, temp) {
+      await this.doCode(`M104 H${heaterId} S${temp} G4 P1000`);
     },
-    enableBedHeateer(temp) {
-      const heater = this.calibrationParams.bedHeater[0];
-      this.enableHeater(heater.id, temp);
+    async enableBedHeater(temp) {
+      await this.doCode(`M140 S${temp} G4 P1000`);
     },
-    disableBedHeater() {
-      const heaters = this.calibrationParams.bedHeater[0];
-      this.enableHeater(heaters.id, 0);
+    async disableBedHeater() {
+      await this.doCode("M140 S-273.1 G4 P1000");
     },
-    enableChamberHeaters(currentBedTemp) {
+    async enableChamberHeater(currentBedTemp) {
       const enableChamberHeaters =
         this.showChamberHeatersConfig &&
         this.calibrationParams.chamberHeaters.length > 0;
       if (enableChamberHeaters) {
         const heaters = this.calibrationParams.chamberHeaters;
-        for (const heater of heaters) {
-          const chamberTemp = Number.min(heater.stop, currentBedTemp);
-          this.enableHeater(heater.id, chamberTemp);
-        }
+        const chamberTemp = Number.min(heater.stop, currentBedTemp);
+        await this.doCode(`M141 S${currentBedTemp} G4 P1000`);
       }
     },
-    disableChamberHeaters() {
+    async disableChamberHeaters() {
       const heaters = this.calibrationParams.chamberHeaters;
       for (const heater of heaters) {
-        this.enableHeater(heater.id, 0);
+        await this.enableHeater(heater.id, 0);
       }
     },
-    enableFan(fanId, speed) {
-      this.doCode(`M106 P${fanId} S${speed}`);
+    async enableFan(fanId, speed) {
+      await this.doCode(`M106 P${fanId} S${speed} G4 P1000`);
     },
-    disableFan(fanId) {
-      this.enableFan(fanId, 0);
+    async disableFan(fanId) {
+      await this.enableFan(fanId, 0);
     },
-    enableFans() {
+    async enableFans() {
       const enableFan =
         this.showFanConfig && this.calibrationParams.fans.length > 0;
       if (enableFan) {
         const fans = this.calibrationParams.fans;
         for (const fan of fans) {
-          this.enableFan(fan.id, fan.speed);
+          await this.enableFan(fan.id, fan.speed);
         }
       }
     },
-    disableFans() {
+    async disableFans() {
       const fans = this.calibrationParams.fans;
       for (const fan of fans) {
-        this.docode(`M106 P${fan.id} S0`);
+        await disableFan(fan.id);
       }
     },
     addChamberHeater() {
@@ -910,45 +920,51 @@ export default {
     //
     async startCalibration() {
       this.calibrationStarted = true;
-      this.startMeasurement();
+      await this.startMeasurement();
     },
     async startMeasurement() {
       const probeIndex = this.calibrationParams.selectedScanningProbeIndex;
       const bedHeaterId = this.calibrationParams.bedHeater[0].id;
       const temps = this.calibrationProgress.map((item) => item.targetTemp);
 
-      this.enableFans();
+      await this.enableFans();
       for (let i = 0; i < temps.length; i++) {
         const temp = temps[i];
-        this.startTime = 0;
+        this.startTime = Date.now();
+        this.setCalibrationStatus(i, false);
         await this.waitForStabilization(bedHeaterId, temp, probeIndex, i);
         await this.soakAtTargetTemperature(bedHeaterId, probeIndex, i);
+        this.setCalibrationStatus(i, true);
       }
-      this.finishMeasurement();
+      await this.finishMeasurement();
+    },
+    setCalibrationStatus(index, status) {
+      this.calibrationProgress[index].status = status;
     },
     async waitForStabilization(bedHeaterId, targetTemp, probeIndex, i) {
+      console.log("WaitForStabilization");
       let isStable = false;
-
+      await this.enableBedHeater(targetTemp);
       // Wait until the bed heater reaches target temp
       while (!isStable) {
         isStable = this.isTemperatureStable(bedHeaterId);
 
         if (!isStable) {
-          await this.delay(1000);
-          this.recordProbeValue(probeIndex);
-          updateCalibrationProgress(i, getHeaterTemp(bedHeaterId));
+          await this.delay(9000);
+          await this.recordProbeValue(probeIndex);
+          this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
         }
       }
     },
     async soakAtTargetTemperature(bedHeaterId, probeIndex, i) {
-      let elapsedTime = 0;
+      console.log("SoakAtTargetTemperature");
+      const soakStartTime = Date.now();
       const totalSoakTime = 300000; // 5 minutes in milliseconds
 
-      while (elapsedTime < totalSoakTime) {
-        await this.delay(1000);
-        elapsedTime += 10000;
-        this.recordProbeValue(probeIndex);
-        updateCalibrationProgress(i, getHeaterTemp(bedHeaterId));
+      while (totalSoakTime < Date.now() - soakStartTime) {
+        await this.delay(9000);
+        await this.recordProbeValue(probeIndex);
+        this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
       }
     },
     updateCalibrationProgress(index, currentTemp) {
@@ -957,10 +973,10 @@ export default {
         Date.now() - this.startTime
       );
     },
-    finishMeasurement() {
-      this.disableBedHeater();
-      this.disableChamberHeaters();
-      this.disableFans();
+    async finishMeasurement() {
+      await this.disableBedHeater();
+      await this.disableChamberHeaters();
+      await this.disableFans();
 
       const filename = this.getSaveFilename();
       this.saveMeasurement(filename);
@@ -979,18 +995,20 @@ export default {
       const probeIndex = this.calibrationParams.selectedScanningProbeIndex;
       return `scanning-probe-index-${probeIndex}-calibration-${time}.csv`;
     },
-    recordProbeValue(probeIndex) {
+    async recordProbeValue(probeIndex) {
       const heaterId = this.calibrationParams.bedHeater[0].id;
-      const currentTargetBedTemp = heaters[heaterId].active;
+      const currentTargetBedTemp = this.heat.heaters[heaterId].active;
 
-      this.disableBedHeater();
+      await this.disableBedHeater();
 
-      const currentBedTemp = getHeaterTemp(heaterId);
-      const currentProbeValue = getScanningProbeValue(probeIndex);
-      const currentProbeTemp = getScanningProbeTemp();
-
-      this.enableHeater(heaterId, currentTargetBedTemp);
-
+      const currentBedTemp = this.getHeaterTemp(heaterId);
+      const currentProbeValue = this.getScanningProbeValue(probeIndex);
+      const currentProbeTemp = this.getScanningProbeTemp();
+      await this.delay(1000);
+      await this.enableBedHeater(currentTargetBedTemp);
+      console.log(
+        `Bed Temp: ${currentBedTemp}, Probe Temp: ${currentProbeTemp}, Probe Value: ${currentProbeValue}`
+      );
       this.calibrationValues.push([
         currentBedTemp,
         currentProbeTemp,
@@ -1017,24 +1035,20 @@ export default {
       return this.probes[probeIndex].getScanningProbeTriggerHeight;
     },
     getScanningProbeTemp() {
-      return getThermistorValue(this.thermistor.index);
+      return this.getThermistorReading(
+        this.calibrationParams.selectedThermistor
+      );
     },
-    getThermistorValue(thermistorId) {
-      return this.thermistors[thermistorId].value;
+    getThermistorReading(thermistorId) {
+      return this.thermistors[thermistorId].lastReading;
     },
     getScanningProbeValue(probeIndex) {
-      return this.probes[probeIndex].value;
+      const probe = this.probes.find((p) => p.index === probeIndex);
+      return probe ? probe.value[0] : null;
     },
     getHeaterTemp(heaterId) {
       const heater = this.heaters.find((h) => h.id === heaterId);
       return heater ? heater.current : null;
-    },
-    checkHeaterTemp(heaterId) {
-      this.heaters.forEach((heater) => {
-        if (heater.id === heaterId) {
-          return heater.current;
-        }
-      });
     },
     //
     // Rules
