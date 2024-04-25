@@ -164,7 +164,7 @@
                           :items="bedHeaters"
                           item-text="name"
                           item-value="id"
-                          label="Heater"
+                          label="Bed Heater"
                           class="pt-0"
                           hide-details
                         ></v-select>
@@ -640,13 +640,13 @@ export default {
     // Rules
     //
     toolIsRequired() {
-      return [(v) => !!v || "Tool selection is required"];
+      return [(v) => v !== null || "Tool selection is required"];
     },
     probeIndexIsRequired() {
-      return [(v) => !!v || "Probe index is required"];
+      return [(v) => v !== null || "Probe index is required"];
     },
     thermistorIsRequired() {
-      return [(v) => !!v || "A thermistor must be selected."];
+      return [(v) => v !== null || "A thermistor must be selected."];
     },
   },
   data() {
