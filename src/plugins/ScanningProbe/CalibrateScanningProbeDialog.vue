@@ -561,7 +561,6 @@ export default {
     },
     getHeaterMaxTemp() {
       return (heaterId) => {
-        console.log("checking max temp for heater", heaterId);
         if (heaterId === null || heaterId === undefined) {
           return 0;
         }
@@ -957,9 +956,6 @@ export default {
       const currentProbeTemp = this.getScanningProbeTemp();
       await this.delay(1000);
       await this.enableBedHeater(currentTargetBedTemp);
-      console.log(
-        `Bed Temp: ${currentBedTemp}, Probe Temp: ${currentProbeTemp}, Probe Value: ${currentProbeValue}`
-      );
       this.calibrationValues.push([
         currentBedTemp,
         currentProbeTemp,
