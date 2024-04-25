@@ -608,7 +608,10 @@ export default {
           heater.stop <= this.getHeaterMaxTemp(heater.id) &&
           heater.step > 0
       );
-      let chamberHeatersValid = !this.showChamberHeatersConfig || (this.calibrationParams.chamberHeaterStart !== null && this.calibrationParams.chamberHeaterStop !== null);
+      let chamberHeatersValid =
+        !this.showChamberHeatersConfig ||
+        (this.calibrationParams.chamberHeaterStart !== null &&
+          this.calibrationParams.chamberHeaterStop !== null);
       let fansValid = true;
       if (this.showFanConfig) {
         fansValid = this.calibrationParams.fans.every(
@@ -761,7 +764,10 @@ export default {
       if (this.showChamberHeatersConfig === true) {
         const heaterStart = this.calibrationParams.chamberHeaterStart;
         const heaterStop = this.calibrationParams.chamberHeaterStop;
-        const targetChamberTemp = Number.min(heaterStop, Number.max(heaterStart, currentBedTemp));
+        const targetChamberTemp = Number.min(
+          heaterStop,
+          Number.max(heaterStart, currentBedTemp)
+        );
         await this.doCode(`M141 S${targetChamberTemp} G4 P1000`);
       }
     },
@@ -859,18 +865,21 @@ export default {
     setCalibrationStatus(index, status) {
       this.calibrationProgress[index].status = status;
     },
+    async updateProgressLoop(bedHeaterId, probeId, i, iterations = 5) {
+      for (let j = 0; j < iterations; j++) {
+        await this.delay(1000);
+        this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
+      }
+      await this.recordProbeValue(probeId);
+      this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
+    },
     async waitForStabilization(bedHeaterId, targetTemp, probeId, i) {
       let isStable = false;
       await this.enableBedHeater(targetTemp);
       // Wait until the bed heater reaches target temp
       while (!isStable) {
         isStable = this.isTemperatureStable(bedHeaterId);
-
-        if (!isStable) {
-          await this.delay(9000);
-          await this.recordProbeValue(probeId);
-          this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
-        }
+        await this.updateProgressLoop(bedHeaterId, probeId, i);
       }
     },
     async soakAtTargetTemperature(bedHeaterId, probeId, i) {
@@ -878,9 +887,7 @@ export default {
       const totalSoakTime = 300000; // 5 minutes in milliseconds
 
       while (totalSoakTime < Date.now() - soakStartTime) {
-        await this.delay(9000);
-        await this.recordProbeValue(probeId);
-        this.updateCalibrationProgress(i, this.getHeaterTemp(bedHeaterId));
+        await this.updateProgressLoop(bedHeaterId, probeId, i);
       }
     },
     updateCalibrationProgress(index, currentTemp) {
@@ -900,7 +907,6 @@ export default {
 
       this.finished = true;
     },
-
     saveMeasurement(filename) {
       const calibrationKey = `scanningProbeCalibration_${filename}`;
       this.saveToLocalStorage(calibrationKey, this.calibrationValues);
@@ -1066,6 +1072,7 @@ export default {
       if (newHeaters.length === 1) {
         this.calibrationParams.bedHeater[0].id = newHeaters[0].id;
       }
+    },
   },
 };
 </script>
