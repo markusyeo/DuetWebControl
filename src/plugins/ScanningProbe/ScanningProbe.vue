@@ -19,15 +19,15 @@ th {
       <v-card>
         <v-tabs v-model="tab">
           <!-- Tabs -->
-          <v-tab href="#calibration">
-            <v-icon class="mr-1">mdi-information</v-icon>
-            Calibration
-          </v-tab>
+
           <v-tab href="#probechart">
             <v-icon class="mr-1">mdi-file</v-icon>
             Probe Chart
           </v-tab>
-
+          <v-tab href="#calibration">
+            <v-icon class="mr-1">mdi-information</v-icon>
+            Calibration
+          </v-tab>
           <v-btn
             color="success"
             class="align-self-center ml-auto mr-2 hidden-sm-and-down"
