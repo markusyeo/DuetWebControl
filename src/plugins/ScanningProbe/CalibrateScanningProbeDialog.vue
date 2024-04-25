@@ -20,19 +20,27 @@
         <v-window v-model="currentPage">
           <!-- Start -->
           <v-window-item value="start">
-            This wizard lets you to calibrate your Duet scanning probe by using
-            the thermistor attached to the coil.<br />
+            This wizard lets you calibrate your Duet scanning probe by using the
+            thermistor attached to the coil.<br />
 
-            <ul class="mt-3 mb-4">
-              <li>Scanning Probe: Index #{{ probes[0].index }}</li>
-              <li>
-                Current temp coefficients:
-                {{ probes[0].temperatureCoefficients }}
-              </li>
-              <li>
-                Current calibration temp: {{ probes[0].calibrationTemperature }}
-              </li>
-            </ul>
+            <!-- List available scanning probes and their coefficients -->
+            <div v-if="probes.length > 0">
+              <ul class="mt-3 mb-4">
+                <li v-for="probe in probes" :key="probe.index">
+                  <strong>Scanning Probe: Index #{{ probe.index }}</strong>
+                  <ul>
+                    <li>
+                      Current temp coefficients:
+                      {{ probe.temperatureCoefficients }}
+                    </li>
+                    <li>
+                      Current calibration temp:
+                      {{ probe.calibrationTemperature }}
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
 
             <v-alert
               :value="probes.length === 0"
@@ -57,9 +65,9 @@
               dense
               class="mt-3"
             >
-              This machine appears to have multiple scanning probes. If you are
-              operating a tool changer, you will need to calibrate each scanning
-              probe separately
+              This machine has multiple scanning probes. If you are operating a
+              tool changer, you will need to calibrate each scanning probe
+              separately.
             </v-alert>
 
             <v-alert
@@ -72,30 +80,69 @@
               Ready to calibrate scanning probe!
             </v-alert>
 
+            <!-- Instruction to continue -->
             <span v-show="probes.length > 0"> Press Next to continue. </span>
           </v-window-item>
 
           <!-- Configuration -->
           <v-window-item value="config">
             <div class="d-flex flex-column">
-              Set up parameters to be used in the calibration process.
+              Set up parameters for the calibration process.
               <br />
-              <v-divider class="mb-3" />
               <div>
-                <div class="text-subtitle-1">
-                  Select the default thermistor and bed heater to be used in the
-                  calibration process
+                <div class="text-subtitle-1 mt-3">
+                  Select the scanning probe to calibrate
                 </div>
-                <v-select
-                  v-model="calibrationParams.selectedThermistor"
-                  :items="thermistors"
-                  item-text="name"
-                  item-value="id"
-                  label="Thermistor"
-                  class="mt-3"
-                  hide-details
-                  :rules="thermistorRules()"
-                ></v-select>
+                <v-row>
+                  <v-col>
+                    <v-select
+                      v-model="calibrationParams.selectedScanningProbeIndex"
+                      :items="
+                        probes.map((probe) => ({
+                          text: `Probe #${probe.index}`,
+                          value: probe.index,
+                        }))
+                      "
+                      item-text="text"
+                      item-value="value"
+                      label="Select Scanning Probe Index"
+                      class="mb-3"
+                      hide-details
+                      :rules="probeIndexIsRequired"
+                    ></v-select>
+                  </v-col>
+                  <v-col>
+                    <v-select
+                      v-model="calibrationParams.selectedThermistor"
+                      :items="thermistors"
+                      item-text="name"
+                      item-value="id"
+                      label="Select Scanning Probe Thermistor"
+                      class="mb-1"
+                      hide-details
+                      :rules="thermistorIsRequired"
+                    ></v-select>
+                  </v-col>
+                </v-row>
+                <v-row>
+                  <v-col>
+                    <div class="text-subtitle-1">
+                      Select the tool to which the scanning probe is attached
+                    </div>
+                    <v-select
+                      v-model="calibrationParams.selectedTool"
+                      :items="toolList"
+                      item-text="text"
+                      item-value="value"
+                      label="Select ScanningProbeTool"
+                      class="mb-3"
+                      hide-details
+                      :rules="toolIsRequired"
+                    ></v-select>
+                  </v-col>
+                </v-row>
+              </div>
+              <div>
                 <v-simple-table class="mt-3">
                   <thead>
                     <tr>
@@ -536,7 +583,7 @@ export default {
       return this.sensors.analog;
     },
     toolList() {
-      return [{ text: "None", value: null }].concat(
+      return [].concat(
         this.tools
           .filter((tool) => !!tool)
           .map((tool) => ({
@@ -589,6 +636,15 @@ export default {
       }
       return false;
     },
+    toolIsRequired() {
+      return [(v) => !!v || "Tool selection is required"];
+    },
+    probeIndexIsRequired() {
+      return [(v) => !!v || "Probe index is required"];
+    },
+    thermistorIsRequired() {
+      return [(v) => !!v || "A thermistor must be selected."];
+    },
   },
   data() {
     return {
@@ -596,7 +652,9 @@ export default {
       showChamberHeatersConfig: false,
       showFanConfig: false,
       calibrationParams: {
-        thermistor: null,
+        selectedTool: null,
+        selectedThermistor: null,
+        selectedScanningProbeIndex: null,
         bedHeater: [{ id: null, start: null, stop: null, step: null }],
         chamberHeaters: [{ id: null, start: null, stop: null }],
         fans: [{ id: null, speed: 0 }],
@@ -644,7 +702,6 @@ export default {
       this.startMeasurement(); // Initiate the calibration process
     },
     async startMeasurement() {
-      const probeIndex =
       const temps = this.calibrationProgress.map((item) => item.targetTemp);
       // Form the data required in the table
       for (let i = 0; i < temps.length; i++) {
@@ -673,7 +730,7 @@ export default {
         while (this.elapsedTime < soakTime) {
           await this.delay(1000);
           this.elapsedTime += 1000;
-          this.recordProbeValue()
+          this.recordProbeValue();
         }
         // Record the current temperature and other values
         this.calibrationProgress[i].currentTemp = this.getHeaterTemp(
@@ -811,9 +868,6 @@ export default {
         sendCode(`M106 P${fan.id} S0`);
       }
     },
-    thermistorRules() {
-      return [(v) => !!v || "A thermistor must be selected."];
-    },
     startTempRules(maxTemp) {
       return [
         (v) => (v !== null && v !== "") || "Start temperature is required",
@@ -921,6 +975,17 @@ export default {
     removeFan(index) {
       this.calibrationParams.fans.splice(index, 1);
     },
+  },
+  created() {
+    if (this.probes.length === 1) {
+      this.calibrationParams.selectedScanningProbeIndex = this.probes[0].index;
+    }
+    if (this.thermistors.length === 1) {
+      this.calibrationParams.selectedThermistor = this.thermistors[0].id;
+    }
+    if (this.toolList.length === 1) {
+      this.calibrationParams.selectedTool = this.toolList[0].value;
+    }
   },
   mounted() {},
   watch: {
