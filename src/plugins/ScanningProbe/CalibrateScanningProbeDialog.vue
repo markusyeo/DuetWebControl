@@ -608,16 +608,7 @@ export default {
           heater.stop <= this.getHeaterMaxTemp(heater.id) &&
           heater.step > 0
       );
-      let chamberHeatersValid = true;
-      if (this.showChamberHeatersConfig) {
-        chamberHeatersValid = this.calibrationParams.chamberHeaters.every(
-          (heater) =>
-            heater.id !== null &&
-            heater.start < heater.stop &&
-            heater.start >= 0 &&
-            heater.stop <= this.getHeaterMaxTemp(heater.id)
-        );
-      }
+      let chamberHeatersValid = !this.showChamberHeatersConfig || (this.calibrationParams.chamberHeaterStart !== null && this.calibrationParams.chamberHeaterStop !== null);
       let fansValid = true;
       if (this.showFanConfig) {
         fansValid = this.calibrationParams.fans.every(
@@ -673,7 +664,8 @@ export default {
         selectedThermistor: null,
         selectedScanningProbeId: null,
         bedHeater: [{ id: null, start: null, stop: null, step: null }],
-        chamberHeaters: [{ id: null, start: null, stop: null }],
+        chamberHeaterStart: null,
+        chamberHeaterStop: null,
         fans: [{ id: null, speed: 0 }],
       },
       run: 0,
@@ -729,17 +721,6 @@ export default {
       const allFans = this.fans;
       return this.getAvailableItems(allFans, selectedFanIds);
     },
-    availableHeaters() {
-      const selectedHeaters = this.calibrationParams.bedHeater.map(
-        (heater) => heater.id
-      );
-      const selectedChamberHeaters = this.calibrationParams.chamberHeaters.map(
-        (heater) => heater.id
-      );
-      const selectedHeaterIds = selectedHeaters.concat(selectedChamberHeaters);
-      const allHeaters = this.heat.heaters;
-      return this.getAvailableItems(allHeaters, selectedHeaterIds);
-    },
     availableFansFor(fanId) {
       const selectedFanIds = this.calibrationParams.fans
         .map((fan) => fan.id)
@@ -777,20 +758,15 @@ export default {
       await this.doCode("M140 S-273.1 G4 P1000");
     },
     async enableChamberHeater(currentBedTemp) {
-      const enableChamberHeaters =
-        this.showChamberHeatersConfig &&
-        this.calibrationParams.chamberHeaters.length > 0;
-      if (enableChamberHeaters) {
-        const heaters = this.calibrationParams.chamberHeaters;
-        const chamberTemp = Number.min(heater.stop, currentBedTemp);
-        await this.doCode(`M141 S${currentBedTemp} G4 P1000`);
+      if (this.showChamberHeatersConfig === true) {
+        const heaterStart = this.calibrationParams.chamberHeaterStart;
+        const heaterStop = this.calibrationParams.chamberHeaterStop;
+        const targetChamberTemp = Number.min(heaterStop, Number.max(heaterStart, currentBedTemp));
+        await this.doCode(`M141 S${targetChamberTemp} G4 P1000`);
       }
     },
     async disableChamberHeaters() {
-      const heaters = this.calibrationParams.chamberHeaters;
-      for (const heater of heaters) {
-        await this.doCode(`M141 S-273.1 G4 P1000`);
-      }
+      await this.doCode(`M141 S-273.1 G4 P1000`);
     },
     async enableFan(fanId, speed) {
       await this.doCode(`M106 P${fanId} S${speed} G4 P1000`);
@@ -814,18 +790,8 @@ export default {
         await disableFan(fan.id);
       }
     },
-    addChamberHeater() {
-      this.calibrationParams.chamberHeaters.push({
-        id: null,
-        start: null,
-        stop: null,
-      });
-    },
     addFan() {
       this.calibrationParams.fans.push({ id: null, speed: 0 });
-    },
-    removeChamberHeater(heaterId) {
-      this.calibrationParams.chamberHeaters.splice(heaterId, 1);
     },
     removeFan(fanId) {
       this.calibrationParams.fans.splice(fanId, 1);
