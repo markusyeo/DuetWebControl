@@ -222,6 +222,9 @@
               <v-checkbox
                 v-model="showChamberHeatersConfig"
                 label="Add a Chamber Heater to the calibration process"
+                :disabled="
+                  !showChamberHeatersConfig && availableHeaters().length === 0
+                "
               ></v-checkbox>
               <div v-if="showChamberHeatersConfig">
                 <v-simple-table class="mt-1">
@@ -318,6 +321,7 @@
               <v-checkbox
                 v-model="showFanConfig"
                 label="Add a Fan to the calibration process"
+                :disabled="!showFanConfig && availableFans().length === 0"
               ></v-checkbox>
               <div v-if="showFanConfig">
                 <v-simple-table class="mt-1">
@@ -887,18 +891,36 @@ export default {
         (v) => v <= maxTemp || `Stop temperature must be <= ${maxTemp}`,
       ];
     },
+    getAvailableItems(allItems, selectedIds) {
+      return allItems
+        .map((item, index) => ({
+          ...item,
+          id: index,
+        }))
+        .filter((item) => !selectedIds.includes(item.id));
+    },
+    availableFans() {
+      const selectedFanIds = this.calibrationParams.fans.map((fan) => fan.id);
+      const allFans = this.fans;
+      return this.getAvailableItems(allFans, selectedFanIds);
+    },
+    availableHeaters() {
+      const selectedHeaters = this.calibrationParams.bedHeater.map(
+        (heater) => heater.id
+      );
+      const selectedChamberHeaters = this.calibrationParams.chamberHeaters.map(
+        (heater) => heater.id
+      );
+      const selectedHeaterIds = selectedHeaters.concat(selectedChamberHeaters);
+      const allHeaters = this.heat.heaters;
+      return this.getAvailableItems(allHeaters, selectedHeaterIds);
+    },
     availableFansFor(fanId) {
       const selectedFanIds = this.calibrationParams.fans
         .map((fan) => fan.id)
         .filter((id) => id != fanId);
-      const remainingFans = this.fans
-        .map((fan, index) => ({
-          ...fan,
-          id: index,
-        }))
-        .filter((fan) => fan.actualValue != null)
-        .filter((fan) => !selectedFanIds.includes(fan.id));
-      return remainingFans;
+      const allFans = this.fans;
+      return this.getAvailableItems(allFans, selectedFanIds);
     },
     availableHeatersFor(heaterId) {
       const selectedHeaters = this.calibrationParams.bedHeater
@@ -966,7 +988,6 @@ export default {
         id: null,
         start: null,
         stop: null,
-        step: 10,
       });
     },
     addFan() {
@@ -1009,6 +1030,16 @@ export default {
         this.currentPage === "calibration"
       ) {
         this.cancelled = true;
+      }
+    },
+    probes(newProbes) {
+      if (newProbes.length === 1) {
+        this.calibrationParams.selectedScanningProbeIndex = newProbes[0].index;
+      }
+    },
+    tools(newTools) {
+      if (newTools.length === 1) {
+        this.calibrationParams.selectedTool = newTools[0];
       }
     },
   },
