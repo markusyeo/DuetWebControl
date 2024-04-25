@@ -161,7 +161,7 @@
                       <td class="px-0">
                         <v-select
                           v-model="heater.id"
-                          :items="availableHeatersFor(heater.id)"
+                          :items="bedHeaters"
                           item-text="name"
                           item-value="id"
                           label="Heater"
@@ -223,92 +223,40 @@
                 v-model="showChamberHeatersConfig"
                 label="Add a Chamber Heater to the calibration process"
                 :disabled="
-                  !showChamberHeatersConfig && availableHeaters().length === 0
+                  !showChamberHeatersConfig && chamberHeaterIds.length === 0
                 "
               ></v-checkbox>
               <div v-if="showChamberHeatersConfig">
-                <v-simple-table class="mt-1">
-                  <thead>
-                    <tr>
-                      <th class="pl-0">Heater</th>
-                      <th style="width: 20%">Start (°C)</th>
-                      <th style="width: 20%">Stop (°C)</th>
-                      <th style="width: 10%" class="pr-0"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="(
-                        heater, index
-                      ) in calibrationParams.chamberHeaters"
-                      :key="`heater-${index}`"
-                    >
-                      <td class="px-0">
-                        <v-select
-                          v-model="heater.id"
-                          :items="availableHeatersFor(heater.id)"
-                          item-text="name"
-                          item-value="id"
-                          label="Bed Heater"
-                          class="pt-0"
-                          hide-details
-                        ></v-select>
-                      </td>
-                      <td style="width: 20%">
-                        <v-text-field
-                          v-model="heater.start"
-                          type="number"
-                          :min="0"
-                          :max="getHeaterMaxTemp(heater.id)"
-                          class="pt-0"
-                          hide-details
-                          :rules="startTempRules(getHeaterMaxTemp(heater.id))"
-                        ></v-text-field>
-                      </td>
-                      <td style="width: 20%">
-                        <v-text-field
-                          v-model="heater.stop"
-                          type="number"
-                          :min="heater.start"
-                          :max="getHeaterMaxTemp(heater.id)"
-                          class="pt-0"
-                          hide-details
-                          :rules="
-                            stopTempRules(
-                              heater.start,
-                              getHeaterMaxTemp(heater.id)
-                            )
-                          "
-                        ></v-text-field>
-                      </td>
-                      <td style="width: 10%" class="pr-0">
-                        <v-btn
-                          color="warning"
-                          :disabled="calibrationParams.bedHeater.length <= 1"
-                          icon
-                          @click="removeChamberHeater(index)"
-                        >
-                          <v-icon>mdi-close</v-icon>
-                        </v-btn>
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-simple-table>
-                <v-btn
-                  color="blue darken-1"
-                  class="px-3 mt-3 mb-3"
-                  outlined
-                  text
-                  @click="addChamberHeater"
-                  :disabled="
-                    heaters.length >=
-                    calibrationParams.bedHeater.length +
-                      calibrationParams.chamberHeaters.length
-                  "
-                >
-                  <v-icon class="mr-1">mdi-plus</v-icon>
-                  Add Chamber Heater
-                </v-btn>
+                <v-row>
+                  <v-col>
+                    <v-text-field
+                      v-model="calibrationParams.chamberHeaterStart"
+                      type="number"
+                      label="Start Temperature (°C)"
+                      hide-details
+                      :min="0"
+                      :max="getChamberHeaterMaxTemp()"
+                      :rules="startTempRules(getChamberHeaterMaxTemp())"
+                    />
+                  </v-col>
+
+                  <v-col>
+                    <v-text-field
+                      v-model="calibrationParams.chamberHeaterStop"
+                      type="number"
+                      label="Stop Temperature (°C)"
+                      hide-details
+                      :min="calibrationParams.chamberHeaterStart"
+                      :max="getChamberHeaterMaxTemp()"
+                      :rules="
+                        stopTempRules(
+                          calibrationParams.chamberHeaterStart,
+                          getChamberHeaterMaxTemp()
+                        )
+                      "
+                    />
+                  </v-col>
+                </v-row>
               </div>
               <div>
                 <v-alert type="warning" dense>
@@ -568,16 +516,25 @@ export default {
     //
     // Getters
     //
-    filterHeaterIds(entries) {
-      return Object.entries(entries)
-        .filter(([, id]) => id !== -1)
-        .map(([, id]) => id);
-    },
-    bedHeatersIds() {
-      return this.filterHeaterIds(this.heat.bedHeaters);
+    bedHeaterIds() {
+      return Object.keys(this.heat.bedHeaters)
+        .filter((key) => this.heat.bedHeaters[key] !== -1)
+        .map((key) => Number(key));
     },
     chamberHeaterIds() {
-      return this.filterHeaterIds(this.heat.chamberHeaters);
+      return Object.keys(this.heat.chamberHeaters)
+        .filter((key) => this.heat.chamberHeaters[key] !== -1)
+        .map((key) => Number(key));
+    },
+    bedHeaters() {
+      return this.heaters.filter((heater) =>
+        this.bedHeaterIds.includes(heater.id)
+      );
+    },
+    chamberHeaters() {
+      return this.heaters.filter((heater) =>
+        this.chamberHeaterIds.includes(heater.id)
+      );
     },
     heaters() {
       return this.heat.heaters.map((heater, index) => ({
@@ -585,6 +542,12 @@ export default {
         name: `Heater ${index}`,
         id: index,
       }));
+    },
+    getChamberHeaterMaxTemp() {
+      return Math.max(...this.chamberHeaters().map((heater) => heater.max));
+    },
+    getChamberHeaterMinTemp() {
+      return Math.min(...this.chamberHeaters().map((heater) => heater.min));
     },
     probes() {
       const annotatedSensors = this.sensors.probes.map((sensor, index) => ({
@@ -733,6 +696,9 @@ export default {
       if (this.toolList.length === 1) {
         this.calibrationParams.selectedTool = this.toolList[0].value;
       }
+      if (this.bedHeaters.length === 1) {
+        this.calibrationParams.bedHeater[0].id = this.bedHeaters[0].id;
+      }
     },
     //
     // Getters
@@ -768,23 +734,6 @@ export default {
       const allFans = this.fans;
       return this.getAvailableItems(allFans, selectedFanIds);
     },
-    availableHeatersFor(heaterId) {
-      const selectedHeaters = this.calibrationParams.bedHeater
-        .map((heater) => heater.id)
-        .filter((id) => id != heaterId);
-      const selectedChamberHeaters = this.calibrationParams.chamberHeaters
-        .map((heater) => heater.id)
-        .filter((id) => id != heaterId);
-      const selectedHeaterIds = selectedHeaters.concat(selectedChamberHeaters);
-      const remainingHeaters = this.heat.heaters
-        .map((heater, index) => ({
-          ...heater,
-          name: `Heater ${index}`,
-          id: index,
-        }))
-        .filter((heater) => !selectedHeaterIds.includes(heater.id));
-      return remainingHeaters;
-    },
     getHeaterMaxTemp(heaterId) {
       if (heaterId === null || heaterId === undefined) {
         return 0;
@@ -815,9 +764,6 @@ export default {
       // Need to include the toolId mapping to the homing probe
       await this.doCode("G28");
     },
-    async enableHeater(heaterId, temp) {
-      await this.doCode(`M104 H${heaterId} S${temp} G4 P1000`);
-    },
     async enableBedHeater(temp) {
       await this.doCode(`M140 S${temp} G4 P1000`);
     },
@@ -837,7 +783,7 @@ export default {
     async disableChamberHeaters() {
       const heaters = this.calibrationParams.chamberHeaters;
       for (const heater of heaters) {
-        await this.enableHeater(heater.id, 0);
+        await this.doCode(`M141 S-273.1 G4 P1000`);
       }
     },
     async enableFan(fanId, speed) {
