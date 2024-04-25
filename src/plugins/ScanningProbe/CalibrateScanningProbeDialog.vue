@@ -845,6 +845,9 @@ export default {
           Number(heater.stop)
         )
       );
+      if (Number(heater.stop) !== temps[temps.length - 1]) {
+        temps.push(Number(heater.stop));
+      }
       return temps;
     },
     // This is for deciding the values to be used fo the probe
