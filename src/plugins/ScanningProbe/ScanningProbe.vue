@@ -1,76 +1,64 @@
 <style scoped>
+.parent-container {
+  height: 60vh;
+}
+
 .content {
-  position: relative;
-  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow-y: hidden;
 }
 
-.content canvas {
-  position: absolute;
-}
-
-th {
-  white-space: nowrap;
+.flex-grow-1 {
+  flex: 1;
 }
 </style>
 
 <template>
-  <v-row>
+  <v-row class="parent-container">
     <v-col>
       <v-card>
+        <!-- Tabs -->
         <v-tabs v-model="tab">
-          <!-- Tabs -->
-
-          <v-tab href="#probechart">
-            <v-icon class="mr-1">mdi-file</v-icon>
-            Probe Chart
-          </v-tab>
           <v-tab href="#calibration">
             <v-icon class="mr-1">mdi-information</v-icon>
             Calibration
           </v-tab>
-          <v-btn
-            color="success"
-            class="align-self-center ml-auto mr-2 hidden-sm-and-down"
-            :disabled="uiFrozen"
-            @click="showCalibrationDialog = true"
-          >
-            <v-icon class="mr-1">mdi-record</v-icon>
-            Calibrate Scanning Probe
-          </v-btn>
+          <v-tab href="#probechart">
+            <v-icon class="mr-1">mdi-file</v-icon>
+            Probe Chart
+          </v-tab>
         </v-tabs>
 
         <v-tabs-items v-model="tab">
-          <!-- Current Settings -->
+          <!-- Calibration Tab -->
           <v-tab-item value="calibration">
-            <div class="d-flex flex-column">
-              <v-alert
-                :value="!isScanningProbePresent"
-                type="info"
-                class="mb-0"
-              >
-                No scanning probe is conencted, please attach a scanning probe
+            <div class="content">
+              <v-alert v-if="!isScanningProbePresent" type="info" class="mb-0">
+                No scanning probe is connected. Please attach a scanning probe
                 for calibration.
               </v-alert>
-              <div
-                v-show="isScanningProbePresent"
-                class="content flex-grow-1 pa-2"
-              >
-                Placeholder for
+              <div v-if="isScanningProbePresent">
+                <scanning-probe-calibration-plot class="flex-grow-1" />
               </div>
             </div>
           </v-tab-item>
+
+          <!-- Probe Chart Tab -->
           <v-tab-item value="probechart">
-            <div v-if="isScanningProbePresent" class="d-flex flex-column">
-              <probevalues-chart />
+            <div class="content">
+              <v-alert v-if="!isScanningProbePresent" type="info">
+                No scanning probe connected. Please attach a scanning probe.
+              </v-alert>
+              <div v-else>
+                <probevalues-chart class="flex-grow-1" />
+              </div>
             </div>
-            <v-alert v-else :value="true" type="info">
-              No scanning probe connected. Please attach a scanning probe.
-            </v-alert>
           </v-tab-item>
         </v-tabs-items>
       </v-card>
     </v-col>
-    <calibrate-scanning-probe-dialog :shown.sync="showCalibrationDialog" />
   </v-row>
 </template>
 
@@ -78,6 +66,7 @@ th {
 import ProbeValuesChart from "./ProbeValuesChart.vue";
 import { mapGetters } from "vuex";
 import CalibrateScanningProbeDialog from "./CalibrateScanningProbeDialog.vue";
+import ScanningProbeCalibrationPlot from "./ScanningProbeCalibrationPlot.vue";
 import store from "@/store";
 
 function checkScanningProbePresent() {
@@ -93,6 +82,7 @@ export default {
   components: {
     "probevalues-chart": ProbeValuesChart,
     "calibrate-scanning-probe-dialog": CalibrateScanningProbeDialog,
+    "scanning-probe-calibration-plot": ScanningProbeCalibrationPlot,
   },
   data() {
     return {
@@ -108,8 +98,7 @@ export default {
   computed: {
     ...mapGetters(["isConnected", "uiFrozen"]),
     isScanningProbePresent() {
-      return true;
-      // return checkScanningProbePresent();
+      return checkScanningProbePresent();
     },
   },
   methods: {

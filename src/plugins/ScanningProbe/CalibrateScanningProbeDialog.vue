@@ -1005,7 +1005,7 @@ export default {
     // File operations
     //
     formatCalibrationValuesToCSV(calibrationValues) {
-      const headers = ["Bed Temp (°C)", "Probe Temp (°C)", "Probe Value"];
+      const headers = ["bedTemp", "probetemp", "probeValue"];
       const rows = calibrationValues.map((value) => {
         const [bedTemp, probeTemp, probeValue] = value;
         return `${bedTemp},${probeTemp},${probeValue}`;

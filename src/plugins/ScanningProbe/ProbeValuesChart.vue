@@ -1,10 +1,8 @@
 <style scoped>
-.card {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
+.card-chart {
+  max-height: 70vh;
+  overflow: hidden;
 }
-
 .content {
   position: relative;
 }
@@ -15,12 +13,47 @@
 </style>
 
 <template>
-  <v-col>
-    <v-switch v-model="filterValues" label="Filter out 999999"></v-switch>
-    <v-card class="d-flex flex-column flex-grow-1">
-      <canvas ref="chart"></canvas>
-    </v-card>
-  </v-col>
+  <v-container fluid>
+    <v-row>
+      <v-col>
+        <v-alert v-if="missingProbeCoefficients" type="warning" text>
+          Scanning probe coefficients are not available.
+        </v-alert>
+      </v-col>
+    </v-row>
+    <v-col>
+      <div class="text--primary">
+        Select the scanning probes to display on the chart.
+      </div>
+    </v-col>
+
+    <v-row class="mb-3">
+      <v-col cols="9">
+        <v-select
+          v-model="selectedProbes"
+          :items="scanningProbes"
+          multiple
+          :item-text="(item) => `Probe ${item.id}`"
+          :item-value="(item) => item.id"
+          label="Scanning Probes"
+          hide-details
+          solo
+        />
+      </v-col>
+
+      <v-col cols="3" class="d-flex justify-end">
+        <v-switch v-model="filterValues" label="Filter out 999999" />
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col>
+        <v-card class="d-flex flex-column flex-grow-1">
+          <canvas ref="chart"></canvas>
+        </v-card>
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
 
 <script lang="ts">
@@ -55,7 +88,7 @@ const probeColors = [
   "blue-grey",
 ];
 
-const sampleInterval = 100; // Interval at which probe samples are recorded
+const sampleInterval = 1000; // Interval at which probe samples are recorded
 const defaultMaxProbevalue = 999999; // Default maximum probe value
 const defaultMaxHeightValue = 10; // Default maximum height value
 const maxSampleTime = 120000; // Maximum time to save sample data in ms
@@ -109,44 +142,40 @@ function pushSeriesData(index: number, sensor: Probe) {
   let machineData = probeSampleData;
   let dataset = machineData.probeValues.find((item) => item.index === index);
 
-  if (!dataset || dataset.locale !== i18n.locale) {
-    if (dataset) {
-      dataset.label = index.toString();
-      dataset.locale = i18n.locale;
-    } else {
-      dataset = makeDataset(index, probeSampleData.times.length);
-      machineData.probeValues.push(dataset);
-    }
+  if (!dataset) {
+    const newDataset = makeDataset(index, probeSampleData.times.length);
+    probeSampleData.probeValues.push(newDataset);
+    newDataset.label = index.toString();
+    newDataset.locale = i18n.locale;
   }
 
-  const probeValue = sensor.value !== null ? sensor.value[0] : NaN;
-  dataset.data!.push(probeValue);
-
+  const probeValue = sensor.value ? sensor.value[0] : NaN;
   const heightParams = getHeightParams(sensor);
   const heightValue = calculateHeight(probeValue, heightParams);
+
+  if (dataset && dataset.data) {
+    dataset.data.push(probeValue);
+  }
+
   if (heightValue !== null) {
-    pushHeightData(index, heightValue);
+    const heightDataset = probeSampleData.probeValues.find(
+      (item) => item.index === index && item.yAxisID === "y1"
+    );
+    if (!heightDataset) {
+      const newHeightDataset = {
+        ...makeDataset(index, probeSampleData.times.length),
+        yAxisID: "y1",
+        label: `Height for Probe ${index}`,
+        borderColor: "rgba(255, 162, 235, 0.6)",
+        backgroundColor: "rgba(255, 162, 235, 0.1)",
+      };
+      probeSampleData.probeValues.push(newHeightDataset);
+    }
+
+    if (heightDataset && heightDataset.data) {
+      heightDataset.data.push(heightValue);
+    }
   }
-}
-
-function pushHeightData(index: number, heightValue: number) {
-  let machineData = probeSampleData;
-  let heightDataset = machineData.probeValues.find(
-    (item) => item.index === index && item.yAxisID === "y1"
-  );
-
-  if (!heightDataset) {
-    heightDataset = {
-      ...makeDataset(index, machineData.times.length),
-      yAxisID: "y1",
-      label: `Height for Probe ${index}`,
-      borderColor: "rgba(255, 162, 235, 0.6)",
-      backgroundColor: "rgba(255, 162, 235, 0.1)",
-    };
-    machineData.probeValues.push(heightDataset);
-  }
-
-  heightDataset.data!.push(heightValue);
 }
 
 interface HeightCalculationParams {
@@ -199,11 +228,34 @@ function getHeightParams(sensor: Probe): HeightCalculationParams {
   return heightParams;
 }
 
+interface ProbeWithId extends Probe {
+  id: number;
+}
+
 let storeSubscribed = false,
   instances: Array<{ update: () => void }> = [];
 
 export default Vue.extend({
   computed: {
+    scanningProbes(): ProbeWithId[] {
+      const machine = store.state.machine.model;
+      if (!machine) return [];
+
+      return machine.sensors.probes
+        .map(
+          (probe, index) =>
+            ({
+              ...probe,
+              id: index,
+            } as ProbeWithId)
+        )
+        .filter(
+          (probe): probe is ProbeWithId => probe !== null && probe.type === 11
+        ); // Scanning Probes
+    },
+    probeIds(): number[] {
+      return this.scanningProbes.map((probe) => probe.id);
+    },
     darkTheme(): boolean {
       return store.state.settings.darkTheme;
     },
@@ -212,6 +264,8 @@ export default Vue.extend({
     },
     chartOptions() {
       return {
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
           x: {
             type: "time",
@@ -221,16 +275,19 @@ export default Vue.extend({
           y: {
             beginAtZero: true,
             title: { display: true, text: "Probe Value" },
+            ticks: {
+              stepSize: 50,
+            },
           },
           y1: {
             beginAtZero: true,
             position: "right",
             title: { display: true, text: "Height (mm)" },
+            ticks: {
+              stepSize: 0.5,
+            },
           },
         },
-        plugins: { legend: { position: "top" } },
-        responsive: true,
-        maintainAspectRatio: false,
       };
     },
   },
@@ -242,11 +299,131 @@ export default Vue.extend({
       minProbeValue: 0,
       minHeightValue: 0,
       maxHeightValue: 10,
+      selectedProbes: [] as number[],
       heightParams: {} as HeightCalculationParams,
       filterValues: false,
+      missingProbeCoefficients: false,
     };
   },
   methods: {
+    initializeDefaultSelectedProbe() {
+      if (this.scanningProbes.length > 0) {
+        this.selectedProbes = [this.scanningProbes[0].id];
+      }
+    },
+    initChart() {
+      this.chart = new Chart(this.$refs.chart as HTMLCanvasElement, {
+        type: "line",
+        options: {
+          // Disable animation
+          animation: {
+            duration: 0,
+          },
+          // Disable line smoothing
+          elements: {
+            line: {
+              tension: 0,
+            },
+          },
+          legend: {
+            labels: {
+              filter: (legendItem, data) =>
+                data.datasets![legendItem.datasetIndex!].showLine,
+              fontFamily: "Roboto,sans-serif",
+            },
+          },
+          maintainAspectRatio: false,
+          responsive: true,
+          responsiveAnimationDuration: 0,
+          scales: {
+            xAxes: [
+              {
+                adapters: {
+                  date: {
+                    locale: dateFnsLocale,
+                  },
+                },
+                gridLines: {
+                  display: true,
+                },
+                ticks: {
+                  min: new Date().getTime() - maxSampleTime,
+                  max: new Date().getTime(),
+                  minor: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                  major: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                },
+                time: {
+                  unit: "minute",
+                  displayFormats: {
+                    minute: "HH:mm",
+                  },
+                },
+                type: "time",
+              },
+            ],
+            yAxes: [
+              {
+                id: "y0",
+                position: "left",
+                gridLines: {
+                  display: true,
+                },
+                ticks: {
+                  minor: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                  major: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                  min: this.minProbeValue,
+                  max: this.maxProbeValue,
+                  stepSize: 5,
+                },
+              },
+              {
+                id: "y1",
+                position: "right",
+                scaleLabel: {
+                  display: true,
+                  labelString: "Height (mm)",
+                },
+                ticks: {
+                  minor: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                  major: {
+                    fontFamily: "Roboto,sans-serif",
+                  },
+                  min: this.minHeightValue,
+                  max: this.maxHeightValue,
+                  stepSize: 0.1,
+                },
+              },
+            ],
+          },
+        },
+        data: {
+          labels: probeSampleData.times,
+          datasets: probeSampleData.probeValues,
+        },
+      });
+    },
+    checkMissingProbeCoefficients() {
+      this.scanningProbes.forEach((probe) => {
+        if (
+          probe.scanCoefficients === null ||
+          // All scan coefficients are 0
+          probe.scanCoefficients.every((coefficient) => coefficient === 0) ||
+          probe.threshold === null
+        ) {
+          this.missingProbeCoefficients = true;
+        }
+      });
+    },
     calculateMinMaxValues() {
       let probeMin = Infinity;
       let probeMax = -Infinity;
@@ -281,16 +458,7 @@ export default Vue.extend({
     },
     update() {
       this.updateChartTick();
-      this.updateChartData();
-    },
-    updateHeightParams() {
-      const machine = store.state.machine.model;
-      if (machine) {
-        const probe = machine.sensors.probes[0];
-        if (probe) {
-          this.heightParams = getHeightParams(probe);
-        }
-      }
+      this.chart.update();
     },
     updateChartTick() {
       this.calculateMinMaxValues();
@@ -320,24 +488,6 @@ export default Vue.extend({
         this.chart.update();
         this.lastUpdate = now;
       }
-    },
-    filterProbeValues(): ProbeChartDataset[] {
-      return probeSampleData.probeValues.map((dataset) => {
-        const filteredData = dataset.data!.map((value) =>
-          value == defaultMaxProbevalue ? NaN : value
-        );
-        return {
-          ...dataset,
-          data: filteredData,
-        } as ProbeChartDataset;
-      });
-    },
-    updateChartData() {
-      const filteredProbeValues = this.filterValues
-        ? this.filterProbeValues()
-        : probeSampleData.probeValues;
-      this.chart.data.datasets = filteredProbeValues;
-      this.chart.update();
     },
     applyDarkTheme(active: boolean) {
       const ticksColor = active ? "#FFF" : "#666";
@@ -372,150 +522,51 @@ export default Vue.extend({
       this.chart.update();
     },
   },
+  created() {
+    this.initializeDefaultSelectedProbe();
+  },
   mounted() {
-    this.chart = new Chart(this.$refs.chart as HTMLCanvasElement, {
-      type: "line",
-      options: {
-        // Disable animation
-        animation: {
-          duration: 0,
-        },
-        // Disable line smoothing
-        elements: {
-          line: {
-            tension: 0,
-          },
-        },
-        legend: {
-          labels: {
-            filter: (legendItem, data) =>
-              data.datasets![legendItem.datasetIndex!].showLine,
-            fontFamily: "Roboto,sans-serif",
-          },
-        },
-        maintainAspectRatio: false,
-        responsive: true,
-        responsiveAnimationDuration: 0,
-        scales: {
-          xAxes: [
-            {
-              adapters: {
-                date: {
-                  locale: dateFnsLocale,
-                },
-              },
-              gridLines: {
-                display: true,
-              },
-              ticks: {
-                min: new Date().getTime() - maxSampleTime,
-                max: new Date().getTime(),
-                minor: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-                major: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-              },
-              time: {
-                unit: "minute",
-                displayFormats: {
-                  minute: "HH:mm",
-                },
-              },
-              type: "time",
-            },
-          ],
-          yAxes: [
-            {
-              id: "y0",
-              position: "left",
-              gridLines: {
-                display: true,
-              },
-              ticks: {
-                minor: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-                major: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-                min: this.minProbeValue,
-                max: this.maxProbeValue,
-                stepSize: 5,
-              },
-            },
-            {
-              id: "y1",
-              position: "right",
-              scaleLabel: {
-                display: true,
-                labelString: "Height (mm)",
-              },
-              ticks: {
-                minor: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-                major: {
-                  fontFamily: "Roboto,sans-serif",
-                },
-                min: this.minHeightValue,
-                max: this.maxHeightValue,
-                stepSize: 0.1,
-              },
-            },
-          ],
-        },
-      },
-      data: {
-        labels: probeSampleData.times,
-        datasets: probeSampleData.probeValues,
-      },
-    });
-    this.applyDarkTheme(this.darkTheme);
+    this.initChart();
+    this.checkMissingProbeCoefficients();
+    this.initializeDefaultSelectedProbe();
 
-    // Keep track of updates
     instances.push(this);
-    if (!storeSubscribed) {
-      this.$root.$on(Events.machineAdded, () => {
-        probeSampleData.times = [];
-        probeSampleData.probeValues = [];
-      });
+    this.$root.$on(Events.machineAdded, () => {
+      probeSampleData.times = [];
+      probeSampleData.probeValues = [];
+    });
 
-      this.$root.$on(Events.machineModelUpdated, (hostname: string) => {
-        const dataset = probeSampleData,
-          now = new Date().getTime();
-        if (
-          dataset.times.length === 0 ||
-          now - dataset.times[dataset.times.length - 1] > sampleInterval
-        ) {
-          // Record sensor temperatures
-          store.state.machine.model.sensors.probes.forEach(
-            (probe, probeIndex) => {
-              if (probe !== null) {
-                if (probe.type.valueOf() == 11 /* Scanning Probe */) {
-                  pushSeriesData(probeIndex, probe);
-                }
-              }
+    this.$root.$on(Events.machineModelUpdated, (hostname: string) => {
+      const now = new Date().getTime();
+
+      if (
+        probeSampleData.times.length === 0 ||
+        now - probeSampleData.times[probeSampleData.times.length - 1] >
+          sampleInterval
+      ) {
+        probeSampleData.times.push(now);
+
+        store.state.machine.model.sensors.probes.forEach(
+          (probe, probeIndex) => {
+            if (probe && probe.type === 11 /* Scanning Probe */) {
+              pushSeriesData(probeIndex, probe);
             }
-          );
-
-          // Record time and deal wih expired temperature samples
-          while (
-            dataset.times.length &&
-            now - dataset.times[0] > maxSampleTime
-          ) {
-            dataset.times.shift();
-            dataset.probeValues.forEach((data) => data.data!.shift());
           }
-          dataset.times.push(now);
+        );
+
+        // Remove expired temperature samples
+        while (
+          probeSampleData.times.length &&
+          now - probeSampleData.times[0] > maxSampleTime
+        ) {
+          probeSampleData.times.shift();
+          probeSampleData.probeValues.forEach((data) => data.data!.shift());
         }
-
-        instances.forEach((instance) => instance.update());
-      });
-
-      storeSubscribed = true;
-    }
+        probeSampleData.times.push(now);
+      }
+      instances.forEach((instance) => instance.update());
+    });
+    storeSubscribed = true;
   },
   beforeDestroy() {
     instances = instances.filter((instance) => instance !== this, this);
