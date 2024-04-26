@@ -29,8 +29,16 @@
             <v-icon class="mr-1">mdi-file</v-icon>
             Probe Chart
           </v-tab>
+          <v-btn
+            color="success"
+            class="align-self-center ml-auto mr-2 hidden-sm-and-down"
+            :disabled="uiFrozen"
+            @click="showCalibrationDialog = true"
+          >
+            <v-icon class="mr-1">mdi-record</v-icon>
+            Calibrate Scanning Probe
+          </v-btn>
         </v-tabs>
-
         <v-tabs-items v-model="tab">
           <!-- Calibration Tab -->
           <v-tab-item value="calibration">
@@ -59,6 +67,7 @@
         </v-tabs-items>
       </v-card>
     </v-col>
+    <calibrate-scanning-probe-dialog :shown.sync="showCalibrationDialog" />
   </v-row>
 </template>
 
