@@ -1,6 +1,6 @@
 <style scoped>
 .parent-container {
-  height: 60vh;
+  /* height: 60vh; */
 }
 
 .content {
