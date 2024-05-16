@@ -911,11 +911,10 @@ export default {
       const calibrationKey = `scanningProbeCalibration_${filename}`;
       this.saveToLocalStorage(calibrationKey, this.calibrationValues);
     },
-
     getSaveFilename() {
       const time = new Date().toISOString().replace(/:/g, "-");
       const probeId = this.calibrationParams.selectedScanningProbeId;
-      return `scanning-probe-index-${probeIndex}-calibration-${time}.csv`;
+      return `scanning-probe-index-${probeId}-calibration-${time}.csv`;
     },
     async recordProbeValue(probeId) {
       const heaterId = this.calibrationParams.bedHeater[0].id;
