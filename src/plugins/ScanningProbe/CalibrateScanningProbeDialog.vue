@@ -342,40 +342,37 @@
           <!-- Data Collection -->
           <v-window-item value="calibration">
             <v-container>
-              <v-alert
-                dense
-                text
-                :type="allAxesHomed || isBusy ? 'success' : 'warning'"
-                class="mb-3"
-              >
-                <v-row align="center">
-                  <v-col>
-                    {{
-                      allAxesHomed
-                        ? "Machine is homed and ready for calibration!"
-                        : "Machine is not homed! Home it before starting calibration."
-                    }}
-                  </v-col>
-                  <v-col class="shrink">
-                    <v-btn small v-if="!allAxesHomed" @click="homeMachine">
-                      <v-icon left>mdi-home</v-icon> Home Machine
-                    </v-btn>
-                  </v-col>
-                  <v-col class="shrink">
-                    <v-progress-circular
-                      v-if="isBusy"
-                      indeterminate
-                      color="blue"
-                      size="24"
-                    >
-                    </v-progress-circular>
-                  </v-col>
-                </v-row>
-              </v-alert>
-            </v-container>
-
-            <v-container>
               <div v-if="!calibrationFinished">
+                <v-alert
+                  dense
+                  text
+                  :type="allAxesHomed || isBusy ? 'success' : 'warning'"
+                  class="mb-3"
+                >
+                  <v-row align="center" v-if="!calibrationStarted">
+                    <v-col>
+                      {{
+                        allAxesHomed
+                          ? "Machine is homed and ready for calibration!"
+                          : "Machine is not homed! Home it before starting calibration."
+                      }}
+                    </v-col>
+                    <v-col class="shrink">
+                      <v-btn small v-if="!allAxesHomed" @click="homeMachine">
+                        <v-icon left>mdi-home</v-icon> Home Machine
+                      </v-btn>
+                    </v-col>
+                    <v-col class="shrink">
+                      <v-progress-circular
+                        v-if="isBusy && !calibrationStarted"
+                        indeterminate
+                        color="blue"
+                        size="24"
+                      >
+                      </v-progress-circular>
+                    </v-col>
+                  </v-row>
+                </v-alert>
                 <h2>Calibration in Progress</h2>
                 <v-data-table
                   :headers="calibrationTableHeaders"
@@ -388,7 +385,7 @@
                       <td class="pa-3">
                         <v-icon>{{ getStateIcon(item.status) }}</v-icon>
                       </td>
-                      <td class="pa-3 text-left">{{ item.index }}</td>
+                      <td class="pa-3 text-center">{{ item.index }}</td>
                       <td
                         class="pa-3 text-left"
                         v-if="item.currentTemp == null"
@@ -420,9 +417,6 @@
                     color="blue darken-1"
                     @click="startCalibration"
                     >Start Calibration</v-btn
-                  >
-                  <v-btn color="gray" @click="goBack"
-                    >Go Back to Configuration</v-btn
                   >
                 </div>
                 <div v-else>
@@ -477,7 +471,7 @@
           >Back</v-btn
         >
         <v-btn
-          v-show="currentPage !== 'collection'"
+          v-show="currentPage !== 'calibration'"
           color="blue darken-1"
           text
           :disabled="!canGoNext"
@@ -485,7 +479,8 @@
           >Next</v-btn
         >
         <v-btn
-          v-show="calibrationCancelled || calibrationFinished"
+          :disabled="!calibrationCancelled || !calibrationFinished"
+          v-show="currentPage === 'calibration'"
           color="blue darken-1"
           text
           @click="shownInternal = false"
@@ -501,8 +496,6 @@
 
 import { MachineStatus } from "@duet3d/objectmodel";
 import { mapActions, mapState } from "vuex";
-
-import { OperationCancelledError } from "@/utils/errors";
 
 export default {
   props: {
@@ -620,12 +613,10 @@ export default {
       }));
     },
     toolList() {
-      return this.tools
-        .filter((tool) => tool)
-        .map((tool) => ({
-          text: tool.name || tool.number.toString(),
-          value: tool,
-        }));
+      return this.tools.map((tool, index) => ({
+        text: tool.name || index.toString(),
+        value: { ...tool, id: index },
+      }));
     },
     //
     // Booleans
@@ -643,7 +634,12 @@ export default {
     // Page navigation
     //
     canGoBack() {
-      return this.currentPage === "config";
+      if (this.currentPage === "config") {
+        return true;
+      }
+      if (this.currentPage === "calibration") {
+        return !this.calibrationStarted;
+      }
     },
     canGoNext() {
       switch (this.currentPage) {
@@ -853,35 +849,32 @@ export default {
     async disableFans() {
       const fans = this.calibrationParams.fans;
       for (const fan of fans) {
-        await disableFan(fan.id);
+        await this.disableFan(fan.id);
       }
     },
     //
     // Pre Calibration
     //
-    calculateTemps() {
-      const bedHeater = this.calibrationParams.selectedBedHeater;
-      const n = Math.ceil(
-        (Number(bedHeater.stop) - Number(bedHeater.start)) /
-          Number(bedHeater.step)
-      );
-      const temps = Array.from({ length: n }, (_, i) =>
-        Math.min(
-          Number(bedHeater.start) + i * Number(bedHeater.step),
-          Number(bedHeater.stop)
-        )
-      );
-      if (Number(bedHeater.stop) !== temps[temps.length - 1]) {
-        temps.push(Number(bedHeater.stop));
-      }
-      return temps;
-    },
     loadCalibrationPage() {
       this.resetCalibrationResults();
+      this.calibrationStarted = false;
       this.calibrationFinished = false;
       this.calibrationCancelled = false;
       this.m558_1Executed = false;
       this.populateCalibrationProgress();
+    },
+    calculateTemps() {
+      const start = this.calibrationParams.bedHeaterStart;
+      const stop = this.calibrationParams.bedHeaterStop;
+      const step = this.calibrationParams.bedHeaterStep;
+      const n = Math.ceil((Number(stop) - Number(start)) / Number(step));
+      const temps = Array.from({ length: n }, (_, i) =>
+        Math.min(Number(start) + i * Number(step), Number(stop))
+      );
+      if (Number(stop) !== temps[temps.length - 1]) {
+        temps.push(Number(stop));
+      }
+      return temps;
     },
     resetCalibrationResults() {
       this.calibrationResults = { calibrationValues: [], coefficients: {} };
@@ -900,14 +893,14 @@ export default {
     // Calibration Process
     //
     async startCalibration() {
+      this.calibrationStarted = true;
       await this.doM558_1();
       this.recordScanCoefficients();
       await this.setToolToTriggerHeight();
-      this.calibrationStarted = true;
       await this.startMeasurement();
     },
     async awaitBusy() {
-      while (this.isBusy()) {
+      while (this.isBusy) {
         await this.delay(1000);
       }
     },
@@ -922,20 +915,18 @@ export default {
     recordScanCoefficients(probeId) {
       const scanningProbe = this.calibrationParams.selectedScanningProbe;
       const coefficients = {
-        A: scanningProbe.coefficients[0],
-        B: scanningProbe.coefficients[1],
-        C: scanningProbe.coefficients[2],
-        triggerHeight: scanningProbe.coefficients[3],
+        A: scanningProbe.scanCoefficients[0],
+        B: scanningProbe.scanCoefficients[1],
+        C: scanningProbe.scanCoefficients[2],
+        triggerOffset: scanningProbe.scanCoefficients[3],
       };
       this.calibrationResults.coefficients = coefficients;
     },
     async setToolToTriggerHeight() {
-      const tool = this.calibrationParams.selectedTool;
-      const probeTriggerHeight = this.selectedScanningProbe.triggerHeight;
-      if (probeTriggerHeight === undefined) {
-        return;
-      }
-      const g1Command = `G1 P${tool} Z${probeTriggerHeight}`;
+      const toolId = this.calibrationParams.selectedTool.id;
+      const probeTriggerHeight =
+        this.calibrationParams.selectedScanningProbe.triggerHeight;
+      const g1Command = `G1 P${toolId} Z${probeTriggerHeight}`;
       await this.doCode(g1Command);
       await this.awaitBusy();
     },
@@ -944,9 +935,14 @@ export default {
       await this.enableFans();
 
       for (let i = 0; i < temps.length; i++) {
+        if (this.calibrationCancelled) {
+          this.cleanUp();
+          break;
+        }
         const temp = temps[i];
         this.startTime = Date.now();
         this.setCalibrationStatus(i, false);
+        await this.setBedHeater(temp);
         await this.waitForStabilization(temp, i);
         await this.soakAtTargetTemperature(i);
         this.setCalibrationStatus(i, true);
@@ -961,11 +957,18 @@ export default {
       this.updateCalibrationProgressTable(i);
       await this.recordProbeValue();
     },
+    isTemperatureStable(targetTemp, heater) {
+      const currentTemp = heater.current;
+      return Math.abs(currentTemp - targetTemp) < 1;
+    },
     async waitForStabilization(targetTemp, i) {
       const bedHeater = this.calibrationParams.selectedBedHeater;
       let isStable = false;
-      await this.setBedHeater(targetTemp);
       while (!isStable) {
+        if (this.calibrationCancelled) {
+          this.cleanUp();
+          break;
+        }
         isStable = this.isTemperatureStable(targetTemp, bedHeater);
         await this.updateProgressLoop(i);
       }
@@ -985,10 +988,13 @@ export default {
         Date.now() - this.startTime
       );
     },
-    async finishMeasurement() {
+    async cleanUp() {
       await this.disableBedHeater();
       await this.disableChamberHeater();
       await this.disableFans();
+    },
+    async finishMeasurement() {
+      await this.cleanUp();
       this.calibrationFinished = true;
     },
     downloadCalibrationResults() {
@@ -1012,18 +1018,11 @@ export default {
       const currentProbeTemp = this.getScanningProbeTemp();
       await this.delay(1000);
       await this.setBedHeater(currentTargetBedTemp);
-      this.calibrationResults.calibrationValues.push([
-        currentBedTemp,
-        currentProbeTemp,
-        currentProbeValue,
-      ]);
+      const res = [currentBedTemp, currentProbeTemp, currentProbeValue];
+      this.calibrationResults.calibrationValues.push(res);
     },
     delay(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
-    },
-    isTemperatureStable(targetTemp, heater) {
-      const currentTemp = heater.current;
-      return Math.abs(currentTemp - targetTemp) < 1;
     },
     formatTime(ms) {
       const minutes = Math.floor(ms / (1000 * 60));
@@ -1045,8 +1044,8 @@ export default {
     // Page operations
     //
     cancel() {
-      if (this.currentPage === "collection" && !this.calibrationCancelled) {
-        this.calibrationCancelled = this.calibrationFinished = true;
+      if (this.currentPage === "calibration" && !this.calibrationCancelled) {
+        this.calibrationCancelled = true;
       } else {
         this.shownInternal = false;
       }
