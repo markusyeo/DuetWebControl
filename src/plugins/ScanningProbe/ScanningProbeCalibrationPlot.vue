@@ -34,16 +34,16 @@ canvas {
 <template>
   <div class="calibration-plot">
     <v-alert v-if="containsInvalidValues" type="warning" text>
-      CSV contains invalid values with probeValue set to 999999.
+      JSON contains invalid values with probeValue set to 999999.
     </v-alert>
 
     <div class="canvas-wrapper">
       <canvas ref="scatterChart"></canvas>
 
       <v-file-input
-        label="Upload Calibration CSV"
+        label="Upload Calibration JSON"
         @change="onFileChange"
-        accept=".csv"
+        accept=".json"
         outlined
         full-width
       />
@@ -62,11 +62,12 @@ export default {
         datasets: [
           {
             label: "Probe Temp vs. Probe Value",
-            data: [], // Data to plot
+            data: [],
             backgroundColor: "rgba(54, 162, 235, 0.5)",
           },
         ],
       },
+      scanCoefficients: { A: null, B: null, C: null, triggerHeight: null },
       containsInvalidValues: false,
     };
   },
@@ -105,36 +106,54 @@ export default {
         const reader = new FileReader();
         reader.onload = (event) => {
           const csvContent = event.target.result;
-          this.parseCsvData(csvContent);
+          this.resetScanCoefficients();
+          this.parseJsonData(csvContent);
         };
-        reader.readAsText(file);
       }
     },
-    parseCsvData(csvContent) {
-      const rows = csvContent.trim().split("\n");
-      const validData = [];
+    parseJsonData(jsonContent) {
+      try {
+        const jsonData = JSON.parse(jsonContent);
+        const validData = [];
 
-      // Reset invalid flag
-      this.containsInvalidValues = false;
+        this.containsInvalidValues = false;
 
-      rows.slice(1).forEach((row) => {
-        const columns = row.split(",");
-        const [bedTemp, probeTemp, probeValue] = columns.map((col) =>
-          parseFloat(col)
+        jsonData.calibrationValues.forEach((dataPoint) => {
+          const [bedTemp, probeTemp, probeValue] = dataPoint;
+
+          if (probeValue === 999999) {
+            this.containsInvalidValues = true;
+          } else {
+            validData.push({ x: probeTemp, y: probeValue });
+          }
+        });
+
+        this.chartData.datasets[0].data = validData;
+
+        this.setScanCoefficients(
+          jsonData.scanCoefficients.A,
+          jsonData.scanCoefficients.B,
+          jsonData.scanCoefficients.C,
+          jsonData.scanCoefficients.triggerHeight
         );
 
-        if (probeValue === 999999) {
-          this.containsInvalidValues = true;
-        } else {
-          validData.push({ x: probeTemp, y: probeValue });
+        if (this.scatterChart) {
+          this.scatterChart.update();
         }
-      });
-
-      this.chartData.datasets[0].data = validData;
-
-      if (this.scatterChart) {
-        this.scatterChart.update();
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
       }
+    },
+    setScanCoefficients(A, B, C, triggerHeight) {
+      this.scanCoefficients = { A, B, C, triggerHeight };
+    },
+    resetScanCoefficients() {
+      this.scanCoefficients = {
+        A: null,
+        B: null,
+        C: null,
+        triggerHeight: null,
+      };
     },
   },
 };
