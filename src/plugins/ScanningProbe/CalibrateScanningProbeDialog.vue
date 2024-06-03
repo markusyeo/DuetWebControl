@@ -537,7 +537,11 @@ export default {
       calibrationStarted: false,
       calibrationFinished: false,
       calibrationCancelled: false,
-      calibrationResults: { calibrationValues: [], coefficients: {} },
+      calibrationResults: {
+        calibrationValues: [],
+        coefficients: {},
+        probeThreshold: null,
+      },
       startTime: 0,
       calibrationProgress: [],
       m558_1Executed: false,
@@ -917,7 +921,11 @@ export default {
       return temps;
     },
     resetCalibrationResults() {
-      this.calibrationResults = { calibrationValues: [], coefficients: {} };
+      this.calibrationResults = {
+        calibrationValues: [],
+        coefficients: {},
+        probeThreshold: null,
+      };
     },
     populateCalibrationProgress() {
       const temps = this.calculateTemps();
@@ -936,6 +944,7 @@ export default {
       this.calibrationStarted = true;
       await this.doM558_1();
       this.recordScanCoefficients();
+      this.recordProbeThreshold();
       await this.setToolToTriggerHeight();
       await this.startMeasurement();
     },
@@ -952,13 +961,17 @@ export default {
       await this.awaitBusy();
       this.m558_1Executed = true;
     },
-    recordScanCoefficients(probeId) {
+    recordProbeThreshold() {
+      const scanningProbe = this.calibrationParams.selectedScanningProbe;
+      this.calibrationResults.probeThreshold = scanningProbe.threshold;
+    },
+    recordScanCoefficients() {
       const scanningProbe = this.calibrationParams.selectedScanningProbe;
       const coefficients = {
-        A: scanningProbe.scanCoefficients[0],
-        B: scanningProbe.scanCoefficients[1],
-        C: scanningProbe.scanCoefficients[2],
-        triggerOffset: scanningProbe.scanCoefficients[3],
+        probeValueDelta: scanningProbe.scanCoefficients[0],
+        A: scanningProbe.scanCoefficients[1],
+        B: scanningProbe.scanCoefficients[2],
+        C: scanningProbe.scanCoefficients[3],
       };
       this.calibrationResults.coefficients = coefficients;
     },
