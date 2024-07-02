@@ -5,29 +5,51 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-direction: column;
   overflow: hidden;
-  background-color: transparent;
 }
 
 .canvas-wrapper {
-  height: 100%;
   width: 100%;
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
+  padding: 20px;
+  border-radius: 8px;
 }
 
 canvas {
-  height: 100%;
   width: 100%;
-  position: relative;
   background: transparent;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
-.v-file-input {
-  margin-top: 16px;
+.input-row {
   width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.input-row .v-text-field,
+.input-row .v-file-input {
+  width: 100%;
+  padding: 0 8px;
+}
+
+.coefficient-alert {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.underlined-link {
+  text-decoration: underline;
 }
 </style>
 
@@ -38,24 +60,37 @@ canvas {
     </v-alert>
 
     <div class="canvas-wrapper">
+      <div class="input-row">
+        <v-file-input
+          label="Upload Calibration JSON"
+          @change="onFileChange"
+          accept=".json"
+          outlined
+        />
+        <v-text-field
+          label="Base Temp for Best Fit Curve (°C)"
+          v-model="calibrationTemp"
+          type="number"
+          @input="computeTemperatureCoefficients"
+          outlined
+          persistent-placeholder
+        />
+      </div>
+      <v-alert v-if="jsonLoaded" class="coefficient-alert" type="info" text>
+        Suggested Coefficients: A = {{ coefficients.A.toFixed(4) }}, B =
+        {{ coefficients.B.toFixed(4) }}
+        <br />
+        Read
+        <a
+          ref="https://docs.duet3d.com/User_manual/Reference/Gcodes/G31"
+          target="_blank"
+          class="underlined-link"
+        >
+          Duet Documentation</a
+        >
+        on how to set temperature coefficients to the probe in <code>G31</code>.
+      </v-alert>
       <canvas ref="scatterChart"></canvas>
-
-      <v-file-input
-        label="Upload Calibration JSON"
-        @change="onFileChange"
-        accept=".json"
-        outlined
-        full-width
-      />
-
-      <v-text-field
-        v-if="jsonLoaded"
-        v-model="calibrationTemp"
-        label="Calibration Temperature (°C)"
-        type="number"
-        outlined
-        full-width
-      />
     </div>
   </div>
 </template>
@@ -71,21 +106,23 @@ export default {
       probeData: {
         scanCoefficients: { probeValueDelta: null, A: null, B: null, C: null },
         probeThreshold: null,
+        triggerHeight: null,
       },
       chartData: {
         datasets: [
           {
             label: "Probe Temp vs. Computed Height",
             data: [],
-            backgroundColor: "rgba(54, 162, 235, 0.5)",
+            backgroundColor: "rgba(255, 0, 0, 0.5)", // Changed to red
+            borderColor: "rgba(255, 0, 0, 1)", // Changed to red
             type: "line",
             fill: false,
           },
           {
             label: "Best Fit Curve",
             data: [],
-            borderColor: "rgba(255, 99, 132, 1)",
-            backgroundColor: "rgba(255, 99, 132, 0.5)",
+            borderColor: "rgba(54, 162, 235, 1)",
+            backgroundColor: "rgba(54, 162, 235, 0.5)",
             type: "line",
             fill: false,
           },
@@ -93,6 +130,7 @@ export default {
       },
       containsInvalidValues: false,
       jsonLoaded: false,
+      coefficients: { A: null, B: null },
     };
   },
   watch: {
@@ -132,11 +170,13 @@ export default {
       if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const csvContent = event.target.result;
-          this.resetScanCoefficients();
-          this.parseJsonData(csvContent);
+          const jsonContent = event.target.result;
+          this.resetData();
+          this.parseJsonData(jsonContent);
+          this.computeTemperatureCoefficients();
           this.jsonLoaded = true;
         };
+        reader.readAsText(file);
       }
     },
     resetData() {
@@ -157,32 +197,14 @@ export default {
       this.probeData = {
         scanCoefficients: nullScanCoefficients,
         probeThreshold: null,
+        triggerHeight: null,
       };
     },
     parseJsonData(jsonContent) {
       try {
         const jsonData = JSON.parse(jsonContent);
-        const validData = [];
-
-        this.resetData();
-        this.containsInvalidValues = false;
-        this.probeData.scanCoefficients = jsonData.coefficients;
-        this.probeData.probeThreshold = jsonData.probeThreshold;
-
-        jsonData.calibrationValues.forEach((dataPoint) => {
-          const [bedTemp, probeTemp, probeValue] = dataPoint;
-
-          if (probeValue === 999999) {
-            this.containsInvalidValues = true;
-          } else {
-            const height = this.computeHeight(probeValue);
-            validData.push({ x: probeTemp, y: height });
-          }
-        });
-
-        this.chartData.datasets[0].data = validData;
-
-        this.computeTemperatureCoefficients();
+        this.readProbeData(jsonData);
+        this.readProbeSettings(jsonData);
 
         this.updateScatterChart();
       } catch (error) {
@@ -190,9 +212,11 @@ export default {
       }
     },
     computeHeight(probeValue) {
+      const triggerHeight = this.probeData.triggerHeight;
       const probeDelta = probeValue - this.probeData.probeThreshold;
       const scanCoefficients = this.probeData.scanCoefficients;
       return (
+        triggerHeight +
         scanCoefficients.A * probeDelta +
         scanCoefficients.B * probeDelta ** 2 +
         scanCoefficients.C * probeDelta ** 3
@@ -218,15 +242,45 @@ export default {
 
       return [A, B];
     },
+    readProbeData(jsonData) {
+      const validData = [];
+      const probeTemps = [];
+
+      this.containsInvalidValues = false;
+
+      jsonData.calibrationValues.forEach((dataPoint) => {
+        const [bedTemp, probeTemp, probeValue] = dataPoint;
+
+        if (probeValue === 999999) {
+          this.containsInvalidValues = true;
+        } else {
+          const height = this.computeHeight(probeValue);
+          validData.push({ x: probeTemp, y: height });
+          probeTemps.push(probeTemp);
+        }
+      });
+
+      this.chartData.datasets[0].data = validData;
+      this.calibrationTemp = Math.min(...probeTemps);
+    },
+    readProbeSettings(jsonData) {
+      this.probeData.scanCoefficients = jsonData.scanCoefficients;
+      this.probeData.probeThreshold = jsonData.probeThreshold;
+      this.probeData.triggerHeight = jsonData.triggerHeight;
+    },
     computeTemperatureCoefficients() {
       const data = this.chartData.datasets[0].data;
       const calibrationTemp = this.calibrationTemp;
 
-      const [A, B] = computeBestFitCurve(data, calibrationTemp);
+      const [A, B] = this.computeBestFitCurve(data, calibrationTemp);
+
+      this.coefficients.A = A;
+      this.coefficients.B = B;
 
       const bestFitData = data.map((dataPoint) => {
         const deltaTemp = dataPoint.x - calibrationTemp;
-        const bestFitHeight = A * deltaTemp + B * deltaTemp ** 2;
+        const bestFitHeight =
+          this.probeData.triggerHeight + A * deltaTemp + B * deltaTemp ** 2;
         return { x: dataPoint.x, y: bestFitHeight };
       });
 
