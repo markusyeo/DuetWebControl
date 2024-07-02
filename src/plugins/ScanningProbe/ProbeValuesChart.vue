@@ -1,14 +1,41 @@
 <style scoped>
-.card-chart {
-  max-height: 70vh;
-  overflow: hidden;
-}
-.content {
-  position: relative;
+.card-wrapper {
+  padding: 0px 20px 20px 20px;
 }
 
-.content > canvas {
-  position: absolute;
+.chart-wrapper {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+canvas {
+  width: 100%;
+  background: transparent;
+  border-radius: 8px;
+}
+
+.input-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.input-row .v-text-field,
+.input-row .v-file-input {
+  width: 100%;
+}
+
+.coefficient-alert {
+  display: flex;
+  align-items: center;
 }
 </style>
 
@@ -16,43 +43,49 @@
   <v-container fluid>
     <v-row>
       <v-col>
-        <v-alert v-if="missingProbeCoefficients" type="warning" text>
-          Scanning probe coefficients are not available.
+        <v-alert v-if="isMissingProbeCoefficients" type="warning" text>
+          Scanning probe coefficients are not available. Please run
+          <code>M558.1 ...</code>
+          to set the coefficients.
+          <br />
+          Refer to
+          <a
+            href="https://docs.duet3d.com/en/Duet3D_hardware/Duet_3_family/Duet_3_Scanning_Z_Probe"
+            target="_blank"
+            >Duet Documentation on Scanning Probe</a
+          >
+          for more information.
         </v-alert>
       </v-col>
     </v-row>
-    <v-col>
-      <div class="text--primary">
-        Select the scanning probes to display on the chart.
-      </div>
-    </v-col>
+    <v-card class="card-wrapper">
+      <v-row class="input-row mb-3">
+        <v-col cols="9">
+          <v-select
+            v-model="selectedProbes"
+            :items="scanningProbes"
+            multiple
+            :item-text="probeItemText"
+            :item-value="probeItemValue"
+            label="Select the scanning probes to display on the chart."
+            persistent-placeholder
+            hide-details
+          />
+        </v-col>
 
-    <v-row class="mb-3">
-      <v-col cols="9">
-        <v-select
-          v-model="selectedProbes"
-          :items="scanningProbes"
-          multiple
-          :item-text="(item) => `Probe ${item.id}`"
-          :item-value="(item) => item.id"
-          label="Scanning Probes"
-          hide-details
-          solo
-        />
-      </v-col>
+        <v-col cols="3" class="d-flex justify-end">
+          <v-switch v-model="filterValues" label="Filter out 999999" />
+        </v-col>
+      </v-row>
 
-      <v-col cols="3" class="d-flex justify-end">
-        <v-switch v-model="filterValues" label="Filter out 999999" />
-      </v-col>
-    </v-row>
-
-    <v-row>
-      <v-col>
-        <v-card class="d-flex flex-column flex-grow-1">
-          <canvas ref="chart"></canvas>
-        </v-card>
-      </v-col>
-    </v-row>
+      <v-row>
+        <v-col>
+          <div class="chart-wrapper">
+            <canvas ref="chart"></canvas>
+          </div>
+        </v-col>
+      </v-row>
+    </v-card>
   </v-container>
 </template>
 
@@ -88,10 +121,12 @@ const probeColors = [
   "blue-grey",
 ];
 
-const sampleInterval = 1000; // Interval at which probe samples are recorded
-const defaultMaxProbevalue = 999999; // Default maximum probe value
-const defaultMaxHeightValue = 10; // Default maximum height value
-const maxSampleTime = 120000; // Maximum time to save sample data in ms
+const sampleInterval = 1000;
+const defaultMinProbeValue = 0;
+const defaultMaxProbevalue = 999999;
+const defaultMinHeight = 0;
+const defaultMaxHeight = 5;
+const maxSampleTime = 60000;
 
 interface ExtraDatasetValues {
   index: number;
@@ -179,51 +214,56 @@ function pushSeriesData(index: number, sensor: Probe) {
 }
 
 interface HeightCalculationParams {
-  trigger_height: number;
-  A: number | null;
-  B: number | null;
-  C: number | null;
-  probe_threshold: number | null;
-  temp_coefficients: number[] | null;
+  triggerHeight: number;
+  probeValueDelta: number;
+  A: number;
+  B: number;
+  C: number;
+  probeThreshold: number;
+  tempCoefficients: number[];
 }
 
 function calculateHeight(
   probe_reading: number,
   params: HeightCalculationParams
 ): number | null {
-  const { trigger_height, A, B, C, probe_threshold } = params;
+  const {
+    triggerHeight: triggerHeight,
+    probeValueDelta: probeValueDelta,
+    A,
+    B,
+    C,
+    probeThreshold: probeThreshold,
+  } = params;
 
-  if (probe_threshold === null) {
+  if (probeThreshold === null) {
     // Threshold is null, do not plot
     return null;
   }
 
-  // Use 0 as the default value for A, B, and C if they are null
-  const a = A ?? 0;
-  const b = B ?? 0;
-  const c = C ?? 0;
-
-  if (a == 0 && b == 0 && c == 0) {
+  if (A == 0 && B == 0 && C == 0) {
     return null;
   }
 
-  const delta = probe_reading - probe_threshold;
+  const delta = probe_reading - probeThreshold;
   const height =
-    trigger_height +
-    a * delta +
-    b * Math.pow(delta, 2) +
-    c * Math.pow(delta, 3);
-  return isNaN(height) ? NaN : height;
+    probeValueDelta +
+    triggerHeight +
+    A * delta +
+    B * delta ** 2 +
+    C * delta ** 3;
+  return height;
 }
 
 function getHeightParams(sensor: Probe): HeightCalculationParams {
   const heightParams: HeightCalculationParams = {
-    trigger_height: sensor.triggerHeight,
-    A: sensor.scanCoefficients ? sensor.scanCoefficients[0] : 0,
-    B: sensor.scanCoefficients ? sensor.scanCoefficients[1] : 0,
-    C: sensor.scanCoefficients ? sensor.scanCoefficients[2] : 0,
-    probe_threshold: sensor.threshold,
-    temp_coefficients: sensor.temperatureCoefficients,
+    triggerHeight: sensor.triggerHeight,
+    probeValueDelta: sensor.scanCoefficients ? sensor.scanCoefficients[0] : 0,
+    A: sensor.scanCoefficients ? sensor.scanCoefficients[1] : 0,
+    B: sensor.scanCoefficients ? sensor.scanCoefficients[2] : 0,
+    C: sensor.scanCoefficients ? sensor.scanCoefficients[3] : 0,
+    probeThreshold: sensor.threshold,
+    tempCoefficients: sensor.temperatureCoefficients,
   };
   return heightParams;
 }
@@ -262,47 +302,59 @@ export default Vue.extend({
     selectedMachine(): string {
       return store.state.selectedMachine;
     },
-    chartOptions() {
-      return {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            type: "time",
-            time: { parser: "HH:mm:ss", tooltipFormat: "ll HH:mm:ss" },
-            title: { display: true, text: "Time" },
-          },
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: "Probe Value" },
-            ticks: {
-              stepSize: 50,
-            },
-          },
-          y1: {
-            beginAtZero: true,
-            position: "right",
-            title: { display: true, text: "Height (mm)" },
-            ticks: {
-              stepSize: 0.5,
-            },
-          },
-        },
+    probeItemText(): (item: ProbeWithId) => string {
+      return (item) => `Probe ${item.id}`;
+    },
+    probeItemValue(): (item: ProbeWithId) => number {
+      return (item) => item.id;
+    },
+    getMinOrMaxValueByIndex(): (number: number, boolean: boolean) => number {
+      return (index: number, getMax: boolean) => {
+        if (!this.chart.data) return NaN;
+        const datasets = this.chart.data.datasets;
+        if (!datasets || index >= datasets.length) return NaN;
+        if (getMax) {
+          return Math.max(
+            ...(datasets[index].data as number[]).filter(
+              (value) => !isNaN(value)
+            )
+          );
+        }
+        return Math.min(
+          ...(datasets[index].data as number[]).filter((value) => !isNaN(value))
+        );
       };
+    },
+    getMinProbeValue(): number {
+      this.minProbeValue =
+        this.getMinOrMaxValueByIndex(0, false) ?? this.minProbeValue;
+      return this.minProbeValue;
+    },
+    getMaxProbeValue(): number {
+      this.maxProbeValue =
+        this.getMinOrMaxValueByIndex(0, true) ?? this.maxProbeValue;
+      return this.maxProbeValue;
+    },
+    getMinHeight(): number {
+      this.minHeight = this.getMinOrMaxValueByIndex(1, false) ?? this.minHeight;
+      return this.minHeight;
+    },
+    getMaxHeight(): number {
+      this.maxHeight = this.getMinOrMaxValueByIndex(1, true) ?? this.maxHeight;
+      return this.maxHeight;
     },
   },
   data() {
     return {
       chart: {} as Chart,
-      lastUpdate: 0,
-      maxProbeValue: defaultMaxProbevalue,
-      minProbeValue: 0,
-      minHeightValue: 0,
-      maxHeightValue: 10,
       selectedProbes: [] as number[],
       heightParams: {} as HeightCalculationParams,
       filterValues: false,
-      missingProbeCoefficients: false,
+      isMissingProbeCoefficients: false,
+      minProbeValue: defaultMinProbeValue,
+      maxProbeValue: defaultMaxProbevalue,
+      minHeight: defaultMinHeight,
+      maxHeight: defaultMaxHeight,
     };
   },
   methods: {
@@ -315,11 +367,9 @@ export default Vue.extend({
       this.chart = new Chart(this.$refs.chart as HTMLCanvasElement, {
         type: "line",
         options: {
-          // Disable animation
           animation: {
             duration: 0,
           },
-          // Disable line smoothing
           elements: {
             line: {
               tension: 0,
@@ -345,6 +395,10 @@ export default Vue.extend({
                 },
                 gridLines: {
                   display: true,
+                },
+                scaleLabel: {
+                  display: true,
+                  labelString: "Time",
                 },
                 ticks: {
                   min: new Date().getTime() - maxSampleTime,
@@ -372,6 +426,10 @@ export default Vue.extend({
                 gridLines: {
                   display: true,
                 },
+                scaleLabel: {
+                  display: true,
+                  labelString: "Probe Value",
+                },
                 ticks: {
                   minor: {
                     fontFamily: "Roboto,sans-serif",
@@ -379,8 +437,8 @@ export default Vue.extend({
                   major: {
                     fontFamily: "Roboto,sans-serif",
                   },
-                  min: this.minProbeValue,
-                  max: this.maxProbeValue,
+                  min: this.getMinProbeValue,
+                  max: this.getMaxProbeValue,
                   stepSize: 5,
                 },
               },
@@ -398,8 +456,8 @@ export default Vue.extend({
                   major: {
                     fontFamily: "Roboto,sans-serif",
                   },
-                  min: this.minHeightValue,
-                  max: this.maxHeightValue,
+                  min: this.getMinHeight,
+                  max: this.getMaxHeight,
                   stepSize: 0.1,
                 },
               },
@@ -420,74 +478,32 @@ export default Vue.extend({
           probe.scanCoefficients.every((coefficient) => coefficient === 0) ||
           probe.threshold === null
         ) {
-          this.missingProbeCoefficients = true;
+          this.isMissingProbeCoefficients = true;
         }
       });
-    },
-    calculateMinMaxValues() {
-      let probeMin = Infinity;
-      let probeMax = -Infinity;
-      let heightMin = Infinity;
-      let heightMax = -Infinity;
-      const datasets = this.chart.data.datasets;
-      if (!datasets) return; // Check if datasets is defined
-      const dataset = datasets[0];
-      const data = dataset.data as number[]; // Assert that data is an array of numbers
-      data.forEach((value) => {
-        if (typeof value === "number") {
-          if (value < probeMin) probeMin = value;
-          if (value > probeMax) probeMax = value;
-        }
-        // Assuming calculateHeight can return a height for each probe value
-        const heightValue = calculateHeight(value, this.heightParams);
-        console.log("calculated height value", heightValue);
-        if (heightValue !== null && !isNaN(heightValue)) {
-          if (heightValue < heightMin) heightMin = heightValue;
-          if (heightValue > heightMax) heightMax = heightValue;
-        }
-      });
-
-      this.minProbeValue = isFinite(probeMin) ? probeMin : 0;
-      this.maxProbeValue = isFinite(probeMax) ? probeMax : defaultMaxProbevalue;
-
-      // Update the height min/max values
-      this.minHeightValue = isFinite(heightMin) ? heightMin : 0;
-      this.maxHeightValue = isFinite(heightMax)
-        ? heightMax
-        : defaultMaxHeightValue;
     },
     update() {
-      this.updateChartTick();
-      this.chart.update();
-    },
-    updateChartTick() {
-      this.calculateMinMaxValues();
-      const now = new Date().getTime();
-      if (now - this.lastUpdate >= 1000) {
-        this.chart.config.options!.scales!.yAxes![0].ticks!.min = this
-          .minProbeValue
-          ? this.minProbeValue
-          : 0;
-        this.chart.config.options!.scales!.yAxes![0].ticks!.max = this
-          .maxProbeValue
-          ? this.maxProbeValue
-          : defaultMaxProbevalue;
-        this.chart.config.options!.scales!.yAxes![1].ticks!.min = this
-          .minHeightValue
-          ? this.minHeightValue
-          : 0;
-        this.chart.config.options!.scales!.yAxes![1].ticks!.max = this
-          .maxHeightValue
-          ? this.maxHeightValue
-          : defaultMaxHeightValue;
-        this.chart.config.options!.scales!.xAxes![0].ticks!.min =
-          new Date().getTime() - maxSampleTime;
-        this.chart.config.options!.scales!.xAxes![0].ticks!.max =
-          new Date().getTime();
+      // Step 1: Update y axis ticks for probe values
+      this.chart.config.options!.scales!.yAxes![0].ticks!.min =
+        this.getMinProbeValue;
+      this.chart.config.options!.scales!.yAxes![0].ticks!.max =
+        this.getMaxProbeValue;
 
-        this.chart.update();
-        this.lastUpdate = now;
-      }
+      // Step 2: Update y axis ticks for height values
+      // If height coefficients are not available, remove the height dataset
+      // Otherwise, update the height dataset and reinsert it
+      this.chart.config.options!.scales!.yAxes![1].ticks!.min =
+        this.getMinHeight;
+      this.chart.config.options!.scales!.yAxes![1].ticks!.max =
+        this.getMaxHeight;
+
+      // Step 3: Update the time axis
+      const now = new Date().getTime();
+      this.chart.config.options!.scales!.xAxes![0].ticks!.min =
+        now - maxSampleTime;
+      this.chart.config.options!.scales!.xAxes![0].ticks!.max = now;
+
+      this.chart.update();
     },
     applyDarkTheme(active: boolean) {
       const ticksColor = active ? "#FFF" : "#666";
@@ -522,51 +538,46 @@ export default Vue.extend({
       this.chart.update();
     },
   },
-  created() {
-    this.initializeDefaultSelectedProbe();
-  },
+  created() {},
   mounted() {
     this.initChart();
     this.checkMissingProbeCoefficients();
     this.initializeDefaultSelectedProbe();
 
     instances.push(this);
-    this.$root.$on(Events.machineAdded, () => {
-      probeSampleData.times = [];
-      probeSampleData.probeValues = [];
-    });
 
-    this.$root.$on(Events.machineModelUpdated, (hostname: string) => {
-      const now = new Date().getTime();
+    if (!storeSubscribed) {
+      this.$root.$on(Events.machineModelUpdated, () => {
+        const dataset = probeSampleData,
+          now = new Date().getTime();
 
-      if (
-        probeSampleData.times.length === 0 ||
-        now - probeSampleData.times[probeSampleData.times.length - 1] >
-          sampleInterval
-      ) {
-        probeSampleData.times.push(now);
-
-        store.state.machine.model.sensors.probes.forEach(
-          (probe, probeIndex) => {
-            if (probe && probe.type === 11 /* Scanning Probe */) {
-              pushSeriesData(probeIndex, probe);
-            }
-          }
-        );
-
-        // Remove expired temperature samples
-        while (
-          probeSampleData.times.length &&
-          now - probeSampleData.times[0] > maxSampleTime
+        if (
+          dataset.times.length === 0 ||
+          now - dataset.times[dataset.times.length - 1] > sampleInterval
         ) {
-          probeSampleData.times.shift();
-          probeSampleData.probeValues.forEach((data) => data.data!.shift());
+          dataset.times.push(now);
+
+          store.state.machine.model.sensors.probes.forEach(
+            (probe, probeIndex) => {
+              if (probe && probe.type === 11 /* Scanning Probe */) {
+                pushSeriesData(probeIndex, probe);
+              }
+            }
+          );
+
+          while (
+            dataset.times.length &&
+            now - dataset.times[0] > maxSampleTime
+          ) {
+            dataset.times.shift();
+            dataset.probeValues.forEach((data) => data.data!.shift());
+          }
+
+          instances.forEach((instance) => instance.update());
         }
-        probeSampleData.times.push(now);
-      }
-      instances.forEach((instance) => instance.update());
-    });
-    storeSubscribed = true;
+      });
+      storeSubscribed = true;
+    }
   },
   beforeDestroy() {
     instances = instances.filter((instance) => instance !== this, this);

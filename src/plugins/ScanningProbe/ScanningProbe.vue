@@ -22,12 +22,12 @@
         <!-- Tabs -->
         <v-tabs v-model="tab">
           <v-tab href="#calibration">
+            <v-tab href="#probechart">
+              <v-icon class="mr-1">mdi-file</v-icon>
+              Probe Chart
+            </v-tab>
             <v-icon class="mr-1">mdi-information</v-icon>
             Calibration
-          </v-tab>
-          <v-tab href="#probechart">
-            <v-icon class="mr-1">mdi-file</v-icon>
-            Probe Chart
           </v-tab>
           <v-btn
             color="success"
