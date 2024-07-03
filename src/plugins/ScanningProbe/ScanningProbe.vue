@@ -40,6 +40,17 @@
           </v-btn>
         </v-tabs>
         <v-tabs-items v-model="tab">
+          <!-- Probe Chart Tab -->
+          <v-tab-item value="probechart">
+            <div class="content">
+              <v-alert v-if="!isScanningProbePresent" type="info">
+                No scanning probe connected. Please attach a scanning probe.
+              </v-alert>
+              <div v-else>
+                <probevalues-chart class="flex-grow-1" />
+              </div>
+            </div>
+          </v-tab-item>
           <!-- Calibration Tab -->
           <v-tab-item value="calibration">
             <div class="content">
@@ -49,18 +60,6 @@
               </v-alert>
               <div v-if="isScanningProbePresent">
                 <scanning-probe-calibration-plot class="flex-grow-1" />
-              </div>
-            </div>
-          </v-tab-item>
-
-          <!-- Probe Chart Tab -->
-          <v-tab-item value="probechart">
-            <div class="content">
-              <v-alert v-if="!isScanningProbePresent" type="info">
-                No scanning probe connected. Please attach a scanning probe.
-              </v-alert>
-              <div v-else>
-                <probevalues-chart class="flex-grow-1" />
               </div>
             </div>
           </v-tab-item>

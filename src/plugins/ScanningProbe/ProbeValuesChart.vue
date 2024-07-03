@@ -126,7 +126,7 @@ const defaultMinProbeValue = 0;
 const defaultMaxProbevalue = 999999;
 const defaultMinHeight = 0;
 const defaultMaxHeight = 5;
-const maxSampleTime = 60000;
+const maxSampleTime = 120000;
 
 interface ExtraDatasetValues {
   index: number;
@@ -180,7 +180,7 @@ function pushSeriesData(index: number, sensor: Probe) {
   if (!dataset) {
     const newDataset = makeDataset(index, probeSampleData.times.length);
     probeSampleData.probeValues.push(newDataset);
-    newDataset.label = index.toString();
+    newDataset.label = `Probe ${index.toString()}`;
     newDataset.locale = i18n.locale;
   }
 
@@ -328,20 +328,19 @@ export default Vue.extend({
     getMinProbeValue(): number {
       this.minProbeValue =
         this.getMinOrMaxValueByIndex(0, false) ?? this.minProbeValue;
-      return this.minProbeValue;
+      return Math.floor(this.minProbeValue / 10) * 10;
     },
     getMaxProbeValue(): number {
       this.maxProbeValue =
         this.getMinOrMaxValueByIndex(0, true) ?? this.maxProbeValue;
-      return this.maxProbeValue;
+      return Math.ceil(this.maxProbeValue / 10) * 10;
     },
     getMinHeight(): number {
-      this.minHeight = this.getMinOrMaxValueByIndex(1, false) ?? this.minHeight;
-      return this.minHeight;
+      return 0;
     },
     getMaxHeight(): number {
       this.maxHeight = this.getMinOrMaxValueByIndex(1, true) ?? this.maxHeight;
-      return this.maxHeight;
+      return Math.ceil(this.maxHeight * 10) / 10;
     },
   },
   data() {
@@ -349,7 +348,7 @@ export default Vue.extend({
       chart: {} as Chart,
       selectedProbes: [] as number[],
       heightParams: {} as HeightCalculationParams,
-      filterValues: false,
+      filterValues: true,
       isMissingProbeCoefficients: false,
       minProbeValue: defaultMinProbeValue,
       maxProbeValue: defaultMaxProbevalue,
@@ -439,7 +438,7 @@ export default Vue.extend({
                   },
                   min: this.getMinProbeValue,
                   max: this.getMaxProbeValue,
-                  stepSize: 5,
+                  stepSize: 10,
                 },
               },
               {
@@ -458,7 +457,7 @@ export default Vue.extend({
                   },
                   min: this.getMinHeight,
                   max: this.getMaxHeight,
-                  stepSize: 0.1,
+                  stepSize: 0.2,
                 },
               },
             ],
@@ -471,15 +470,13 @@ export default Vue.extend({
       });
     },
     checkMissingProbeCoefficients() {
-      this.scanningProbes.forEach((probe) => {
-        if (
+      this.isMissingProbeCoefficients = this.scanningProbes.some((probe) => {
+        return (
           probe.scanCoefficients === null ||
           // All scan coefficients are 0
           probe.scanCoefficients.every((coefficient) => coefficient === 0) ||
           probe.threshold === null
-        ) {
-          this.isMissingProbeCoefficients = true;
-        }
+        );
       });
     },
     update() {
@@ -490,8 +487,7 @@ export default Vue.extend({
         this.getMaxProbeValue;
 
       // Step 2: Update y axis ticks for height values
-      // If height coefficients are not available, remove the height dataset
-      // Otherwise, update the height dataset and reinsert it
+      this.checkMissingProbeCoefficients();
       this.chart.config.options!.scales!.yAxes![1].ticks!.min =
         this.getMinHeight;
       this.chart.config.options!.scales!.yAxes![1].ticks!.max =
@@ -587,7 +583,18 @@ export default Vue.extend({
       this.applyDarkTheme(to);
     },
     filterValues(newVal) {
-      this.filterValues = newVal;
+      this.chart.data.datasets!.forEach((dataset) => {
+        if (newVal) {
+          dataset.data = (dataset.data as number[]).map((value) =>
+            value === 999999 ? NaN : value
+          );
+        } else {
+          dataset.data = (dataset.data as number[]).map((value) =>
+            isNaN(value) ? 999999 : value
+          );
+        }
+      });
+      this.update();
     },
     selectedMachine() {
       this.chart.config.data = {
