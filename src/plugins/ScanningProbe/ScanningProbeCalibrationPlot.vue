@@ -203,8 +203,8 @@ export default {
     parseJsonData(jsonContent) {
       try {
         const jsonData = JSON.parse(jsonContent);
-        this.readProbeData(jsonData);
         this.readProbeSettings(jsonData);
+        this.readProbeData(jsonData);
 
         this.updateScatterChart();
       } catch (error) {
