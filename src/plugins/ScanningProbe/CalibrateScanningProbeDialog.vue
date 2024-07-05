@@ -7,6 +7,17 @@
   align-items: center;
   justify-content: space-between;
 }
+.underlined-link {
+  color: darkblue;
+  text-decoration: none;
+}
+.underlined-link:hover {
+  text-decoration: underline;
+}
+.v-alert.info a {
+  color: darkblue;
+  text-decoration: underline;
+}
 </style>
 
 <template>
@@ -22,6 +33,16 @@
           <v-window-item value="start">
             This wizard lets you calibrate your Duet scanning probe by using the
             thermistor attached to the coil.<br />
+            <v-alert type="info">
+              Refer to
+              <a
+                href="https://docs.duet3d.com/en/Duet3D_hardware/Duet_3_family/Duet_3_Scanning_Z_Probe"
+                target="_blank"
+                class="underlined-link"
+                >Duet Documentation on Scanning Probe</a
+              >
+              for more information.
+            </v-alert>
             <!-- List available scanning probes and their coefficients -->
             <div v-if="scanningProbes.length > 0">
               <ul class="mt-3 mb-4">
@@ -40,46 +61,62 @@
                 </li>
               </ul>
             </div>
-
-            <v-alert
-              :value="scanningProbes.length === 0"
-              dense
-              text
-              type="error"
-              class="my-3"
-            >
-              No scanning probe found!
-              <a
-                href="https://docs.duet3d.com/en/Duet3D_hardware/Duet_3_family/Duet_3_Scanning_Z_Probe"
-                target="_blank"
-                class="float-right"
-                >Help</a
+            <div v-if="scanningProbes.length > 0 && !allAxesHomed">
+              <v-alert
+                :value="!allAxesHomed"
+                dense
+                text
+                border="left"
+                type="warning"
+                class="centered-alert my-3"
               >
-            </v-alert>
+                Machine is not homed
+                <code-btn code="G28" color="warning" small class="float-right">
+                  Home All
+                </code-btn>
+              </v-alert>
+            </div>
 
-            <v-alert
-              :value="hasMultipleScanningProbes"
-              type="info"
-              dense
-              class="mt-3"
-            >
-              This machine has multiple scanning probes. If you are operating a
-              tool changer, you will need to calibrate each scanning probe
-              separately.
-            </v-alert>
+            <div v-if="hasMultipleScanningProbes">
+              <v-alert
+                dense
+                text
+                border="left"
+                type="info"
+                class="centered-alert my-3"
+              >
+                This machine has multiple scanning probes. If you are operating
+                a tool changer, you will need to calibrate each scanning probe
+                separately.
+              </v-alert>
+            </div>
 
-            <v-alert
-              :value="scanningProbes.length > 0"
-              dense
-              text
-              type="success"
-              class="my-3"
-            >
-              Ready to calibrate scanning probe!
-            </v-alert>
-            <span v-show="scanningProbes.length > 0"
-              >Press Next to continue.</span
-            >
+            <div v-if="scanningProbes.length === 0">
+              <v-alert
+                dense
+                text
+                border="left"
+                type="error"
+                class="centered-alert my-3"
+              >
+                No scanning probe found!
+              </v-alert>
+            </div>
+
+            <div v-if="scanningProbes.length > 0 && allAxesHomed">
+              <v-alert
+                dense
+                text
+                border="left"
+                type="success"
+                class="centered-alert my-3"
+              >
+                Ready to calibrate scanning probe!
+              </v-alert>
+              <span v-show="scanningProbes.length > 0"
+                >Press Next to continue.</span
+              >
+            </div>
           </v-window-item>
 
           <!-- Configuration -->
@@ -113,8 +150,8 @@
                     <v-select
                       v-model="calibrationParams.selectedThermistor"
                       :items="thermistors"
-                      item-text="name"
-                      item-value="id"
+                      item-text="text"
+                      item-value="thermistor"
                       label="Select Scanning Probe Thermistor"
                       class="mb-1"
                       hide-details
@@ -131,7 +168,7 @@
                       v-model="calibrationParams.selectedTool"
                       :items="toolList"
                       item-text="text"
-                      item-value="value"
+                      item-value="tool"
                       label="Select Scanning Probe Tool"
                       class="mb-3"
                       hide-details
@@ -173,20 +210,12 @@
                           v-model="calibrationParams.bedHeaterStart"
                           type="number"
                           :min="0"
-                          :max="
-                            getHeaterMaxTemp(
-                              calibrationParams.selectedBedHeater
-                            )
-                          "
+                          :max="getHeaterMaxTemp(selectedBedHeater)"
                           :label="getBedHeaterStartLabel()"
                           class="pt-0"
                           hide-details
                           :rules="
-                            startTempRules(
-                              getHeaterMaxTemp(
-                                calibrationParams.selectedBedHeater
-                              )
-                            )
+                            startTempRules(getHeaterMaxTemp(selectedBedHeater))
                           "
                         ></v-text-field>
                       </td>
@@ -195,20 +224,14 @@
                           v-model="calibrationParams.bedHeaterStop"
                           type="number"
                           :min="calibrationParams.bedHeaterStart"
-                          :max="
-                            getHeaterMaxTemp(
-                              calibrationParams.selectedBedHeater
-                            )
-                          "
+                          :max="getHeaterMaxTemp(selectedBedHeater)"
                           :label="getBedHeaterStopLabel()"
                           class="pt-0"
                           hide-details
                           :rules="
                             stopTempRules(
                               calibrationParams.bedHeaterStart,
-                              getHeaterMaxTemp(
-                                calibrationParams.selectedBedHeater
-                              )
+                              getHeaterMaxTemp(selectedBedHeater)
                             )
                           "
                         ></v-text-field>
@@ -219,6 +242,7 @@
                           type="number"
                           class="pt-0"
                           hide-details
+                          :rules="stepTempRules"
                         ></v-text-field>
                       </td>
                     </tr>
@@ -265,7 +289,7 @@
                 </v-row>
               </div>
               <div>
-                <v-alert type="warning" dense>
+                <v-alert type="warning" border="left" text dense>
                   You should enclose your printer if possible to help simulate
                   higher probe temperatures.
                 </v-alert>
@@ -332,7 +356,7 @@
                 </v-btn>
               </div>
               <v-divider class="mx-auto" />
-              <v-alert dense text>
+              <v-alert dense border="left" text>
                 The machine will calculate new temperature coefficients as soon
                 as Next is clicked.
               </v-alert>
@@ -345,80 +369,96 @@
               <div v-if="!calibrationFinished">
                 <v-alert
                   v-if="!calibrationStarted"
+                  :value="!allAxesHomed"
+                  border="left"
                   dense
                   text
-                  :type="allAxesHomed || isBusy ? 'success' : 'warning'"
-                  class="mb-3"
+                  :type="allAxesHomed ? 'success' : 'warning'"
+                  class="centered-alert my-3"
                 >
-                  <v-row align="center">
-                    <v-col>
-                      {{
-                        allAxesHomed
-                          ? "Machine is homed and ready for calibration!"
-                          : "Machine is not homed! Home it before starting calibration."
-                      }}
-                    </v-col>
-                    <v-col class="shrink">
-                      <v-btn small v-if="!allAxesHomed" @click="homeMachine">
-                        <v-icon left>mdi-home</v-icon> Home Machine
-                      </v-btn>
-                    </v-col>
-                    <v-col class="shrink">
-                      <v-progress-circular
-                        v-if="isBusy && !calibrationStarted"
-                        indeterminate
-                        color="blue"
-                        size="24"
-                      >
-                      </v-progress-circular>
-                    </v-col>
-                  </v-row>
+                  Machine is not homed! Home it before starting calibration.
+                  <code-btn
+                    code="G28"
+                    color="warning"
+                    small
+                    class="float-right"
+                  >
+                    Home All
+                  </code-btn>
                 </v-alert>
-                <h2>Calibration in Progress</h2>
+                <h2>Calibration</h2>
+                <v-row>
+                  <v-col cols="12">
+                    <v-simple-table class="calibration-table">
+                      <tbody>
+                        <tr></tr>
+                        <tr>
+                          <td>Elapsed Time</td>
+                          <td>
+                            {{ formatTime(calibrationProgress.timeElapsed) }}
+                          </td>
+                          <td>Probe Value</td>
+                          <td>{{ getScanningProbeValue }}</td>
+                        </tr>
+                        <tr>
+                          <td>Bed Temp</td>
+                          <td>{{ getBedHeaterTemp.toFixed(2) }}°C</td>
+                          <td>Scanning Probe Temp</td>
+                          <td>{{ getScanningProbeTemp.toFixed(2) }}°C</td>
+                        </tr>
+                        <tr></tr>
+                      </tbody>
+                    </v-simple-table>
+                  </v-col>
+                </v-row>
+                <h2>Progress</h2>
                 <v-data-table
                   :headers="calibrationTableHeaders"
-                  :items="calibrationProgress"
+                  :items="calibrationProgress.values"
                   hide-default-footer
                   dense
                 >
                   <template v-slot:item="{ item }">
                     <tr>
-                      <td class="pa-3">
+                      <td class="pa-3 text-center">{{ item.index }}</td>
+                      <td class="pa-3 text-center">
                         <v-icon>{{ getStateIcon(item.status) }}</v-icon>
                       </td>
-                      <td class="pa-3 text-center">{{ item.index }}</td>
-                      <td
-                        class="pa-3 text-left"
-                        v-if="item.currentTemp == null"
-                      ></td>
-                      <td class="pa-3 text-left" v-else>
-                        Current Temp: {{ item.currentTemp }}°C
-                      </td>
-                      <td class="pa-3 text-left">
-                        Target Temp: {{ item.targetTemp }}°C
-                      </td>
-                      <td
-                        class="pa-3 text-left"
-                        v-if="item.timeElapsed == null"
-                      ></td>
-                      <td class="pa-3 text-left" v-else>
-                        Time Elapsed: {{ item.timeElapsed }}
-                      </td>
+                      <td class="pa-3 text-center">{{ item.targetTemp }}°C</td>
                     </tr>
                   </template>
                 </v-data-table>
 
                 <div v-if="!calibrationStarted">
-                  <v-alert type="warning" dense v-if="checkStartTemperature()">
+                  <v-alert
+                    class="centered-alert my-3"
+                    type="warning"
+                    dense
+                    text
+                    border="left"
+                    v-if="checkStartTemperature()"
+                  >
                     The current bed temperature is higher than the start
                     temperature. If you continue, the calibration process will
                     start at the next temperature step above
-                    {{ getBedHeaterCurrentTemp }}°C.
+                    {{ getBedHeaterTemp }}°C.
                   </v-alert>
-                  <v-alert type="info" dense v-if="m558_1Executed">
+                  <v-alert
+                    type="info"
+                    border="left"
+                    dense
+                    text
+                    v-if="!m558_1Executed"
+                  >
                     Press the button below to start the calibration process.<br />
-                    M558.1 K{{ calibrationParams.selectedScanningProbe.id }}
-                    S0.5 command will be executed when you click it.
+                    <code
+                      >M558.1 K{{
+                        calibrationParams.selectedScanningProbe.id
+                      }}
+                      S0.5</code
+                    >
+                    command will be executed when you click it. And the selected
+                    tool will be set to the trigger height.
                   </v-alert>
                   <v-btn
                     :disabled="!allAxesHomed"
@@ -428,7 +468,7 @@
                   >
                 </div>
                 <div v-else>
-                  <v-alert type="info" dense>
+                  <v-alert type="info" border="left" text dense>
                     Calibration in progress. Please wait...
                   </v-alert>
                   <v-btn
@@ -450,6 +490,7 @@
             <v-alert
               :value="calibrationCancelled"
               dense
+              border="left"
               text
               type="error"
               class="mt-3"
@@ -459,6 +500,7 @@
             <v-alert
               :value="calibrationFinished"
               dense
+              border="left"
               text
               type="success"
               class="mt-3"
@@ -539,18 +581,25 @@ export default {
       calibrationCancelled: false,
       calibrationResults: {
         calibrationValues: [],
-        coefficients: {},
+        scanCoefficients: {},
         probeThreshold: null,
+        triggerHeight: null,
       },
-      startTime: 0,
-      calibrationProgress: [],
+      calibrationProgress: {
+        startTime: 0,
+        values: [],
+        timeElapsed: 0,
+      },
       m558_1Executed: false,
       calibrationTableHeaders: [
-        { text: "Status", align: "start", value: "status" },
-        { text: "Index", sortable: false, value: "index" },
-        { text: "Current Temp", value: "currentTemp" },
-        { text: "Target Temp", value: "targetTemp" },
-        { text: "Time Elapsed", value: "timeElapsed" },
+        { text: "Index", sortable: false, align: "center", value: "index" },
+        { text: "Status", sortable: false, align: "center", value: "status" },
+        {
+          text: "Target Temp",
+          sortable: false,
+          align: "center",
+          value: "targetTemp",
+        },
       ],
     };
   },
@@ -623,14 +672,14 @@ export default {
     },
     thermistors() {
       return this.sensors.analog.map((sensor, index) => ({
-        ...sensor,
-        id: index,
+        text: sensor.name || index.toString(),
+        thermistor: sensor,
       }));
     },
     toolList() {
       return this.tools.map((tool, index) => ({
         text: tool.name || index.toString(),
-        value: { ...tool, id: index },
+        tool: { ...tool, id: index },
       }));
     },
     //
@@ -645,19 +694,22 @@ export default {
     selectedBedHeater() {
       return this.calibrationParams.selectedBedHeater;
     },
+    selectedThermistor() {
+      return this.calibrationParams.selectedThermistor;
+    },
     getBedHeaterActiveTemp() {
       return this.selectedBedHeater.active;
     },
-    getBedHeaterCurrentTemp() {
-      return this.selectedBedHeater.current;
-    },
-    getThermistorReading() {
-      return (thermistorId) => this.thermistors[thermistorId].lastReading;
+    getBedHeaterTemp() {
+      return this.selectedBedHeater ? this.selectedBedHeater.current : 0;
     },
     getScanningProbeTemp() {
-      return this.getThermistorReading(
-        this.calibrationParams.selectedThermistor
-      );
+      return this.selectedThermistor ? this.selectedThermistor.lastReading : 0;
+    },
+    getScanningProbeValue() {
+      return this.selectedScanningProbe
+        ? this.selectedScanningProbe.value[0]
+        : 0;
     },
     //
     // Booleans
@@ -685,23 +737,22 @@ export default {
     canGoNext() {
       switch (this.currentPage) {
         case "start":
-          return this.scanningProbes.length > 0;
+          return this.scanningProbes.length > 0 && this.allAxesHomed;
         case "config":
           return this.isConfigPageValid;
       }
       return false;
     },
     isConfigPageValid() {
-      const isScanningProbeSelected =
-        this.calibrationParams.selectedScanningProbe !== null;
-      const isToolSelected = this.calibrationParams.selectedTool !== null;
-      const isThermistorSelected = !!this.calibrationParams.selectedThermistor;
+      const isScanningProbeSelected = this.selectedScanningProbe !== null;
+      const isToolSelected = this.selectedTool !== null;
+      const isThermistorSelected = this.selectedThermistor !== null;
       const bedHeater = this.selectedBedHeater;
       const bedHeaterValid =
-        bedHeater !== null &&
-        this.calibrationParams.bedHeaterStart <
+        bedHeater != null &&
+        this.calibrationParams.bedHeaterStart <=
           this.calibrationParams.bedHeaterStop &&
-        this.calibrationParams.bedHeaterStart >= 0 &&
+        this.calibrationParams.bedHeaterStart >= bedHeater.min &&
         this.calibrationParams.bedHeaterStop <= bedHeater.max &&
         this.calibrationParams.bedHeaterStep > 0;
       const chamberHeatersValid =
@@ -740,15 +791,22 @@ export default {
       return (maxTemp) => [
         (v) => (v !== null && v !== "") || "Start temperature is required",
         (v) => Number(v) >= 0 || "Start temperature must be >= 0",
-        (v) => Number(v) < maxTemp || `Start temperature must be <= ${maxTemp}`,
+        (v) =>
+          Number(v) <= maxTemp || `Start temperature must be <= ${maxTemp}`,
       ];
     },
     stopTempRules() {
       return (start, maxTemp) => [
         (v) => (v !== null && v !== "") || "Stop temperature is required",
         (v) =>
-          Number(v) > start || "Stop temperature must be >= start temperature",
+          Number(v) >= start || "Stop temperature must be >= start temperature",
         (v) => Number(v) <= maxTemp || `Stop temperature must be <= ${maxTemp}`,
+      ];
+    },
+    stepTempRules() {
+      return [
+        (v) => (v !== null && v !== "") || "Step temperature is required",
+        (v) => Number(v) > 0 || "Step temperature must be > 0",
       ];
     },
   },
@@ -756,6 +814,7 @@ export default {
     ...mapActions("machine", ["sendCode"]),
     async doCode(code) {
       const reply = await this.sendCode(code);
+      console.log(reply);
       if (reply.indexOf("Error") === 0) {
         throw new Error(`Code ${code} failed: ${reply}`);
       }
@@ -763,19 +822,25 @@ export default {
     //
     // Initialization methods
     //
-    initializeCalibrationParams() {
+    initialiseCalibrationParams() {
       if (this.scanningProbes.length === 1) {
         this.calibrationParams.selectedScanningProbe = this.scanningProbes[0];
       }
       if (this.thermistors.length === 1) {
-        this.calibrationParams.selectedThermistor = this.thermistors[0].id;
+        this.calibrationParams.selectedThermistor =
+          this.thermistors[0].thermistor;
       }
       if (this.toolList.length === 1) {
-        this.calibrationParams.selectedTool = this.toolList[0].value;
+        this.calibrationParams.selectedTool = this.toolList[0].tool;
       }
       if (this.bedHeaters.length === 1) {
         this.calibrationParams.selectedBedHeater = this.bedHeaters[0];
       }
+
+      //
+      this.calibrationParams.selectedThermistor =
+        this.thermistors[3].thermistor;
+      this.initialiseCalibrationProgress();
     },
     //
     // Configuration methods
@@ -805,37 +870,44 @@ export default {
       const selectedFanIds = this.availableFans().filter((id) => id != fanId);
       return this.getAvailableItems(this.fans, selectedFanIds);
     },
-    getBedHeaterStartLabel() {
+    getBedHeaterLabel(start, stop) {
       let minTemp = 0;
       let maxTemp = 0;
       const bedHeater = this.selectedBedHeater;
+
       if (bedHeater !== null) {
         minTemp = Math.max(0, bedHeater.min);
-        maxTemp = bedHeater.max - 1;
-      }
-      if (this.calibrationParams.bedHeaterStop !== null) {
-        maxTemp = Math.min(maxTemp, this.calibrationParams.bedHeaterStop) - 1;
-      }
-      return `[${minTemp}-${maxTemp}]`;
-    },
-    getBedHeaterStopLabel() {
-      let minTemp = 0;
-      let maxTemp = 0;
-      const bedHeater = this.selectedBedHeater;
-      if (bedHeater !== null) {
-        minTemp = Math.max(minTemp, bedHeater.min);
         maxTemp = bedHeater.max;
       }
-      if (this.calibrationParams.bedHeaterStart !== null) {
-        minTemp = Math.max(minTemp, this.calibrationParams.bedHeaterStart) + 1;
+      if (start !== null) {
+        minTemp = Math.min(Math.max(minTemp, start), maxTemp);
       }
+      if (stop !== null) {
+        maxTemp = Math.max(Math.min(maxTemp, stop), minTemp);
+      }
+
       return `[${minTemp}-${maxTemp}]`;
     },
-    getStateIcon(completed) {
-      if (completed === null) {
+    getBedHeaterStartLabel() {
+      const bedHeaterStop = this.calibrationParams.bedHeaterStop;
+      return this.getBedHeaterLabel(null, bedHeaterStop);
+    },
+    getBedHeaterStopLabel() {
+      const bedHeaterStart = this.calibrationParams.bedHeaterStart;
+      return this.getBedHeaterLabel(bedHeaterStart, null);
+    },
+    getStateIcon(status) {
+      if (status === null) {
         return;
       }
-      return completed ? "mdi-check" : "mdi-clock";
+      if (status == "heating") {
+        return "mdi-radiator";
+      }
+      if (status == "soaking") {
+        return "mdi-clock";
+        return "mdi-radiator-disabled";
+      }
+      return "mdi-check";
     },
     //
     // Machine Operations
@@ -858,7 +930,7 @@ export default {
     async enableChamberHeater(bedTemp) {
       if (
         this.showChamberHeatersConfig === false ||
-        this.showChamberHeatersConfig === null
+        !this.showChamberHeatersConfig
       ) {
         return;
       }
@@ -905,7 +977,7 @@ export default {
       this.calibrationFinished = false;
       this.calibrationCancelled = false;
       this.m558_1Executed = false;
-      this.populateCalibrationProgress();
+      this.initialiseCalibrationProgress();
     },
     calculateTemps() {
       const start = this.calibrationParams.bedHeaterStart;
@@ -923,18 +995,17 @@ export default {
     resetCalibrationResults() {
       this.calibrationResults = {
         calibrationValues: [],
-        coefficients: {},
+        scanCoefficients: {},
         probeThreshold: null,
+        triggerHeight: null,
       };
     },
-    populateCalibrationProgress() {
+    initialiseCalibrationProgress() {
       const temps = this.calculateTemps();
-      this.calibrationProgress = temps.map((targetTemp, index) => ({
+      this.calibrationProgress.values = temps.map((targetTemp, index) => ({
         status: null,
-        index,
-        currentTemp: null,
+        index: index + 1,
         targetTemp,
-        timeElapsed: null,
       }));
     },
     //
@@ -943,89 +1014,98 @@ export default {
     async startCalibration() {
       this.calibrationStarted = true;
       await this.doM558_1();
-      this.recordScanCoefficients();
-      this.recordProbeThreshold();
+      this.recordProbeSettings();
       await this.setToolToTriggerHeight();
       await this.startMeasurement();
     },
-    async awaitBusy() {
+    async awaitBusy(milliseconds = 1000) {
       while (this.isBusy) {
-        await this.delay(1000);
+        await this.delay(milliseconds);
       }
     },
     async doM558_1() {
-      const probeId = this.calibrationParams.selectedScanningProbe.id;
+      const probeId = this.selectedScanningProbe.id;
       const m558_1_S_Value = 0.5;
       const m558_1Command = `M558.1 K${probeId} S${m558_1_S_Value}`;
       await this.doCode(m558_1Command);
       await this.awaitBusy();
       this.m558_1Executed = true;
     },
-    recordProbeThreshold() {
-      const scanningProbe = this.calibrationParams.selectedScanningProbe;
+    async doG1(toolId, zValue) {
+      const g1Command = `G1 P${toolId} Z${zValue}`;
+      await this.doCode(g1Command);
+      await this.awaitBusy();
+    },
+    recordProbeSettings() {
+      const scanningProbe = this.selectedScanningProbe;
+      this.recordProbeValue(scanningProbe);
+      this.recordTriggerHeight(scanningProbe);
+      this.recordScanCoefficients(scanningProbe);
+    },
+    recordProbeThreshold(scanningProbe) {
       this.calibrationResults.probeThreshold = scanningProbe.threshold;
     },
-    recordScanCoefficients() {
-      const scanningProbe = this.calibrationParams.selectedScanningProbe;
-      const coefficients = {
+    recordTriggerHeight(scanningProbe) {
+      this.calibrationResults.triggerHeight = scanningProbe.triggerHeight;
+    },
+    recordScanCoefficients(scanningProbe) {
+      const scanCoefficients = {
         probeValueDelta: scanningProbe.scanCoefficients[0],
         A: scanningProbe.scanCoefficients[1],
         B: scanningProbe.scanCoefficients[2],
         C: scanningProbe.scanCoefficients[3],
       };
-      this.calibrationResults.coefficients = coefficients;
+      this.calibrationResults.scanCoefficients = scanCoefficients;
     },
     async setToolToTriggerHeight() {
-      const toolId = this.calibrationParams.selectedTool.id;
-      const probeTriggerHeight =
-        this.calibrationParams.selectedScanningProbe.triggerHeight;
-      const g1Command = `G1 P${toolId} Z${probeTriggerHeight}`;
-      await this.doCode(g1Command);
-      await this.awaitBusy();
+      const toolId = this.selectedTool.id;
+      const probeTriggerHeight = this.selectedScanningProbe.triggerHeight;
+      await this.doG1(toolId, probeTriggerHeight);
     },
     async startMeasurement() {
-      const temps = this.calibrationProgress.map((item) => item.targetTemp);
+      const temps = this.calibrationProgress.values.map(
+        (item) => item.targetTemp
+      );
       await this.enableFans();
 
       for (let i = 0; i < temps.length; i++) {
         if (this.calibrationCancelled) {
           this.cleanUp();
-          break;
+          return;
         }
         const temp = temps[i];
-        if (this.getBedHeaterCurrentTemp > temp + 1) {
-          this.setCalibrationStatus(i, true);
+        if (this.getBedHeaterTemp > temp + 1) {
+          this.setCalibrationStatus(i, "completed");
           continue;
         }
-        this.startTime = Date.now();
-        this.setCalibrationStatus(i, false);
-        console.log("Setting bed heater to", temp);
+        this.calibrationProgress.startTime = Date.now();
+        this.setCalibrationStatus(i, "heating");
         await this.setBedHeater(temp);
-        console.log("Waiting for stabilization at", temp);
         await this.waitForStabilization(temp, i);
-        console.log("Soaking at", temp);
-        await this.soakAtTemp(i);
-        console.log("soak completed");
+        await this.soakAtTemp(i, 15000);
         this.setCalibrationStatus(i, true);
       }
-      console.log("calibration finishing...");
       await this.finishMeasurement();
     },
     setCalibrationStatus(index, status) {
-      this.calibrationProgress[index].status = status;
+      this.calibrationProgress.values[index].status = status;
     },
     async updateProgressLoop(i) {
-      await this.delay(1000);
-      this.updateCalibrationProgressTable(i);
+      this.updateTimeElapsed();
       await this.recordProbeValue();
+      await this.delay(1000);
+    },
+    updateTimeElapsed() {
+      const timeElapsed = Date.now() - this.calibrationProgress.startTime;
+      this.calibrationProgress.timeElapsed = timeElapsed;
     },
     checkStartTemperature() {
-      const currentTemp = this.getBedHeaterCurrentTemp;
+      const currentTemp = this.getBedHeaterTemp;
       const startTemp = Number(this.calibrationParams.bedHeaterStart) + 1;
       return currentTemp > startTemp;
     },
     isTemperatureStable(targetTemp) {
-      const currentTemp = this.getBedHeaterCurrentTemp;
+      const currentTemp = this.getBedHeaterTemp;
       return Math.abs(currentTemp - targetTemp) < 1;
     },
     async waitForStabilization(targetTemp, i) {
@@ -1039,6 +1119,7 @@ export default {
     },
     async soakAtTemp(i, duration = 300000) {
       // Default soak duration is 5 minutes
+      this.setCalibrationStatus(i, "soaking");
       const soakStartTime = Date.now();
       await this.delay(1000);
       while (duration > Date.now() - soakStartTime) {
@@ -1049,13 +1130,7 @@ export default {
         await this.updateProgressLoop(i);
       }
     },
-    updateCalibrationProgressTable(index) {
-      this.calibrationProgress[index].currentTemp =
-        this.getBedHeaterCurrentTemp;
-      this.calibrationProgress[index].timeElapsed = this.formatTime(
-        Date.now() - this.startTime
-      );
-    },
+
     async cleanUp() {
       await this.disableBedHeater();
       await this.disableChamberHeater();
@@ -1066,12 +1141,12 @@ export default {
       this.calibrationFinished = true;
     },
     downloadCalibrationResults() {
-      const filename = this.getSaveFilename() + ".json";
+      const filename = this.getSavedFilename() + ".json";
       this.downloadJSON(this.calibrationResults, filename);
     },
-    getSaveFilename() {
+    getSavedFilename() {
       const time = new Date().toISOString().replace(/:/g, "-");
-      const probeId = this.calibrationParams.selectedScanningProbe.id;
+      const probeId = this.selectedScanningProbe.id;
       return `scanning-probe-index-${probeId}-calibration-${time}`;
     },
     async recordProbeValue() {
@@ -1079,9 +1154,8 @@ export default {
 
       await this.disableBedHeater();
 
-      const currentBedTemp = this.getBedHeaterCurrentTemp;
-      const currentProbeValue =
-        this.calibrationParams.selectedScanningProbe.value[0];
+      const currentBedTemp = this.getBedHeaterTemp;
+      const currentProbeValue = this.getScanningProbeValue;
       const currentProbeTemp = this.getScanningProbeTemp;
       await this.setBedHeater(currentTargetBedTemp);
       const res = [currentBedTemp, currentProbeTemp, currentProbeValue];
@@ -1091,6 +1165,9 @@ export default {
       return new Promise((resolve) => setTimeout(resolve, ms));
     },
     formatTime(ms) {
+      if (!ms) {
+        return "0m 0s";
+      }
       const minutes = Math.floor(ms / (1000 * 60));
       const seconds = Math.floor((ms % (1000 * 60)) / 1000);
       return `${minutes}m ${seconds}s`;
@@ -1147,13 +1224,13 @@ export default {
     },
   },
   created() {
-    this.initializeCalibrationParams();
+    this.initialiseCalibrationParams();
   },
   mounted() {},
   watch: {
     shown(to) {
       if (to) {
-        this.initializeCalibrationParams();
+        this.initialiseCalibrationParams();
       } else {
         if (this.currentPage === "calibration") {
           this.calibrationCancelled = true;
