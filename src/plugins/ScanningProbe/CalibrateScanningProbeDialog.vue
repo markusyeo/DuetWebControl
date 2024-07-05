@@ -1041,6 +1041,7 @@ export default {
       this.recordProbeValue(scanningProbe);
       this.recordTriggerHeight(scanningProbe);
       this.recordScanCoefficients(scanningProbe);
+      this.recordProbeThreshold(scanningProbe);
     },
     recordProbeThreshold(scanningProbe) {
       this.calibrationResults.probeThreshold = scanningProbe.threshold;
@@ -1082,7 +1083,7 @@ export default {
         this.setCalibrationStatus(i, "heating");
         await this.setBedHeater(temp);
         await this.waitForStabilization(temp, i);
-        await this.soakAtTemp(i, 15000);
+        await this.soakAtTemp(i);
         this.setCalibrationStatus(i, true);
       }
       await this.finishMeasurement();
