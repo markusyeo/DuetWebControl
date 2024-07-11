@@ -298,7 +298,8 @@
       "prompt": "Wczytałeś co najmniej jedno oprogramowanie sprzętowe. Czy chcesz zainstalować je teraz?",
       "resetTitle": "Zresetować oprogramowanie sprzętowe?",
       "resetPrompt": "Właśnie zainstalowałeś aktualizację rozszerzeń. Czy chcesz ponownie uruchomić główny sterownik aby przywrócić wcześniejszą konfigurację?",
-      "sbcWarning": "Używasz maszyny w trybie SBC. \nUaktualnij oprogramowanie układowe za pomocą DWC tylko wtedy, gdy jest to zalecane przez twórców oprogramowania układowego."
+      "sbcWarning": "Używasz maszyny w trybie SBC. \nUaktualnij oprogramowanie układowe za pomocą DWC tylko wtedy, gdy jest to zalecane przez twórców oprogramowania układowego.",
+      "updateWiFiFirmware": "Zainstaluj dołączoną aktualizację oprogramowania sprzętowego Wi-Fi"
     },
     "inputRequired": "Proszę podać wartość",
     "numberRequired": "Proszę wpisać odpowiednią liczbę",
@@ -733,7 +734,8 @@
       "updateInterval": "Aktualizuj interwał ({0})",
       "fileTransferRetryThreshold": "Retry threshold for file transfers({0})",
       "crcUploads": "Użyj sum kontrolnych CRC32 aby sprawdzić aktualizacje",
-      "unavailable": "Brak dostępnych ustawień"
+      "unavailable": "Brak dostępnych ustawień",
+      "retryDelay": "Czas oczekiwania między ponownymi próbami AJAX (ms)"
     },
     "settingsElectronics": {
       "caption": "Elektronika",
@@ -744,7 +746,8 @@
       "updateNote": "Notatka: Możesz zainstalować aktualizację na stronie systemu.",
       "dsfVersion": "Wersja DSF: {0}",
       "notConnected": "(nie połączony)",
-      "dwcVersion": "Wersja DWC: {0}"
+      "dwcVersion": "Wersja DWC: {0}",
+      "canAddress": "Adres CAN {0}"
     },
     "settingsEndstops": {
       "caption": "Krańcówka",
@@ -820,7 +823,8 @@
       "probe": "Z-Probe|Z-Probes",
       "noStatus": "Brak statusu",
       "extrusionRate": "Szybkość wytłaczania",
-      "volumetricFlow": "Objętościowe natężenie przepływu"
+      "volumetricFlow": "Objętościowe natężenie przepływu",
+      "virtualEPos": "Wirtualna pozycja wytłaczarki"
     },
     "tools": {
       "caption": "Narzędzia",
@@ -1021,7 +1025,9 @@
       "showWorkplace": "Pokaż miejsce pracy",
       "zBelt": "Pas Z",
       "perimeterOnly": "Tylko obwód",
-      "progressMode": "Tryb postępu"
+      "progressMode": "Tryb postępu",
+      "cancelObj": "Anuluj obiekt",
+      "resumeObj": "Wznów obiekt"
     },
     "heightmap": {
       "menuCaption": "Mapa wysokości",

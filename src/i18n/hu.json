@@ -298,7 +298,8 @@
       "prompt": "Firmware frissítést töltött fel. Akarja most telepíteni?",
       "resetTitle": "Visszaállítja a firmware-t?",
       "resetPrompt": "Bővítőmodul firssítést telepített. Újra akarja indítani a fő vezérlőpanelt hogy visszaállítsa az előző konfigurációt?",
-      "sbcWarning": "A gépet SBC módban működteti. Csak akkor frissítse a firmware-t a DWC-vel, ha a fejlesztők kimondottan ezt javasolják."
+      "sbcWarning": "A gépet SBC módban működteti. Csak akkor frissítse a firmware-t a DWC-vel, ha a fejlesztők kimondottan ezt javasolják.",
+      "updateWiFiFirmware": "Telepítse a mellékelt WiFi firmware-frissítést"
     },
     "inputRequired": "Adja meg az értéket",
     "numberRequired": "Érvényes számot adjon meg",
@@ -732,7 +733,8 @@
       "updateInterval": "Frissítési gyakoriság ({0})",
       "fileTransferRetryThreshold": "Újrapróbálkozási küszöb fájlátvitelhez ({0})",
       "crcUploads": "CRC32 ellenőrzés használata a feltöltésekhez",
-      "unavailable": "Nem áll rendelkezésre beállítás"
+      "unavailable": "Nem áll rendelkezésre beállítás",
+      "retryDelay": "Az AJAX újrapróbálkozások közötti várakozási idő (ms)"
     },
     "settingsElectronics": {
       "caption": "Elektronika",
@@ -743,7 +745,8 @@
       "updateNote": "Megjegyzés: Frissítéseket a Rendszer menüpontban tud feltölteni és telepíteni.",
       "notConnected": "(nincs kapcsolat)",
       "dsfVersion": "DSF verzió: {0}",
-      "dwcVersion": "DWC verzó: {0}"
+      "dwcVersion": "DWC verzó: {0}",
+      "canAddress": "CAN cím: {0}"
     },
     "settingsEndstops": {
       "caption": "Végállások",
@@ -831,7 +834,8 @@
       "probe": "Z tapintó|Z tapintók",
       "noStatus": "Nincs állapot",
       "extrusionRate": "Extrudálási sebesség",
-      "volumetricFlow": "Térfogatáram"
+      "volumetricFlow": "Térfogatáram",
+      "virtualEPos": "Virtuális extruder pozíciója"
     },
     "tools": {
       "caption": "Szerszámok",

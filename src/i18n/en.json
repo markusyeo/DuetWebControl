@@ -298,7 +298,8 @@
       "prompt": "You have uploaded at least one firmware update. Would you like to install them now?",
       "resetTitle": "Reset firmware?",
       "resetPrompt": "You have just installed expansion board updates. Do you want to reboot the main controller to restore the previous configuration?",
-      "sbcWarning": "You are operating your machine in SBC mode. Please upgrade the firmware using DWC only if advised by the firmware developers."
+      "sbcWarning": "You are operating your machine in SBC mode. Please upgrade the firmware using DWC only if advised by the firmware developers.",
+      "updateWiFiFirmware": "Install included WiFi Firmware Update"
     },
     "inputRequired": "Please enter a value",
     "numberRequired": "Please enter a valid number",
@@ -732,7 +733,8 @@
       "updateInterval": "Update interval ({0})",
       "fileTransferRetryThreshold": "Retry threshold for file transfers ({0})",
       "crcUploads": "Use CRC32 checksums for uploads",
-      "unavailable": "No settings available"
+      "unavailable": "No settings available",
+      "retryDelay": "Time to wait between AJAX retries (ms)"
     },
     "settingsElectronics": {
       "caption": "Electronics",
@@ -743,7 +745,8 @@
       "updateNote": "Note: You can install updates on the System page.",
       "notConnected": "(not connected)",
       "dsfVersion": "DSF Version: {0}",
-      "dwcVersion": "DWC Version: {0}"
+      "dwcVersion": "DWC Version: {0}",
+      "canAddress": "CAN address {0}"
     },
     "settingsEndstops": {
       "caption": "Endstops",
@@ -831,7 +834,8 @@
       "probe": "Z-Probe|Z-Probes",
       "noStatus": "No Status",
       "extrusionRate": "Extrusion Rate",
-      "volumetricFlow": "Volumetric Flow"
+      "volumetricFlow": "Volumetric Flow",
+      "virtualEPos": "Virtual Extruder Position"
     },
     "tools": {
       "caption": "Tools",

@@ -298,7 +298,8 @@
       "prompt": "Sie haben gerade mindestens ein Firmwareupdate hochgeladen. Möchten Sie diese jetzt installieren?",
       "resetTitle": "Firmware zurücksetzen?",
       "resetPrompt": "Sie haben gerade Updates für Erweiterungsboards installiert. Möchten Sie den Hauptcontroller jetzt neustarten um die vorige Konfiguration wiederherzustellen?",
-      "sbcWarning": "Sie betreiben ihre Maschine im SBC-Modus. Bitte aktualisieren Sie die Firmware mittels DWC nur sofern dies von den Firmwareentwicklern empfohlen wurde."
+      "sbcWarning": "Sie betreiben ihre Maschine im SBC-Modus. Bitte aktualisieren Sie die Firmware mittels DWC nur sofern dies von den Firmwareentwicklern empfohlen wurde.",
+      "updateWiFiFirmware": "Enthaltenes WiFi Firmwareupdate installieren "
     },
     "inputRequired": "Bitte Wert eingeben",
     "numberRequired": "Bitte gültige Zahl eingeben",
@@ -733,7 +734,8 @@
       "updateInterval": "Aktualisierungsintervall ({0})",
       "fileTransferRetryThreshold": "Grenzwert für erneute Versuche von Dateiübertragungen ({0})",
       "crcUploads": "CRC32-Prüfsummen für Uploads verwenden",
-      "unavailable": "Keine Einstellungen verfügbar"
+      "unavailable": "Keine Einstellungen verfügbar",
+      "retryDelay": "Wartezeit zwischen AJAX-Wiederholungsversuchen (ms)"
     },
     "settingsElectronics": {
       "caption": "Elektronik",
@@ -744,7 +746,8 @@
       "updateNote": "Hinweis: Sie können Aktualisierungen auf der System-Seite installieren.",
       "notConnected": "(nicht verbunden)",
       "dsfVersion": "DSF Version: {0}",
-      "dwcVersion": "DWC-Version: {0}"
+      "dwcVersion": "DWC-Version: {0}",
+      "canAddress": "CAN-Adresse {0}"
     },
     "settingsEndstops": {
       "caption": "Endlagenschalter",
@@ -832,7 +835,8 @@
       "probe": "Z-Sonde|Z-Sonden",
       "noStatus": "Kein Status",
       "extrusionRate": "Extrusionsrate",
-      "volumetricFlow": "Volumenstrom"
+      "volumetricFlow": "Volumenstrom",
+      "virtualEPos": "Virtuelle Extruderposition"
     },
     "tools": {
       "caption": "Werkzeuge",
@@ -1021,7 +1025,9 @@
       "zBelt": "Z-Riemen",
       "zBeltAngle": "Winkel des Z-Riemens",
       "progressMode": "Fortschrittsmodus",
-      "perimeterOnly": "Nur Ränder"
+      "perimeterOnly": "Nur Ränder",
+      "cancelObj": "Objekt abbrechen",
+      "resumeObj": "Objekt fortsetzen"
     },
     "heightmap": {
       "menuCaption": "Höhenkarte",

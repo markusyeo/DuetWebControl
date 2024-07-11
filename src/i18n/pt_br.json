@@ -261,7 +261,8 @@
       "prompt": "Você fez upload pelo menos de uma atualização de firmware. Você gostaria de instalá-la agora?",
       "resetTitle": "Redefinir firmware?",
       "resetPrompt": "Você acabou de instalar atualizações da placa de expansão. Você deseja reiniciar o controlador principal para restaurar a configuração anterior?",
-      "sbcWarning": "Você está operando sua máquina no modo SBC. \nAtualize o firmware usando o DWC somente se recomendado pelos desenvolvedores do firmware."
+      "sbcWarning": "Você está operando sua máquina no modo SBC. \nAtualize o firmware usando o DWC somente se recomendado pelos desenvolvedores do firmware.",
+      "updateWiFiFirmware": "Instale a atualização de firmware WiFi incluída"
     },
     "inputRequired": "Por favor, insira um valor",
     "numberRequired": "Por favor, insira um número válido",
@@ -733,7 +734,8 @@
       "updateInterval": "Intervalo de atualização ({0})",
       "fileTransferRetryThreshold": "Limite de novas tentativas para transferências de arquivos ({0})",
       "crcUploads": "Utilizar CRC32 checksums para uploads",
-      "unavailable": "Nenhuma configuração disponível"
+      "unavailable": "Nenhuma configuração disponível",
+      "retryDelay": "Tempo de espera entre novas tentativas de AJAX (ms)"
     },
     "settingsElectronics": {
       "caption": "Eletrônicas",
@@ -744,7 +746,8 @@
       "updateNote": "Nota: Você pode instalar atualizações na página Sistema.",
       "dsfVersion": "Versão DSF: {0}",
       "notConnected": "(não conectado)",
-      "dwcVersion": "Versão DWC: {0}"
+      "dwcVersion": "Versão DWC: {0}",
+      "canAddress": "Endereço CAN {0}"
     },
     "settingsEndstops": {
       "caption": "Endstops",
@@ -820,7 +823,8 @@
       "probe": "Z-Probe|Z-Probes",
       "noStatus": "Sem Status",
       "extrusionRate": "Taxa de extrusão",
-      "volumetricFlow": "Vazão Volumétrica"
+      "volumetricFlow": "Vazão Volumétrica",
+      "virtualEPos": "Posição da Extrusora Virtual"
     },
     "tools": {
       "caption": "Ferramentas",
@@ -965,7 +969,9 @@
       "showWorkplace": "Mostrar local de trabalho",
       "zBelt": "Cinto Z",
       "perimeterOnly": "Somente Perímetro",
-      "progressMode": "Modo de Progresso"
+      "progressMode": "Modo de Progresso",
+      "cancelObj": "Cancelar objeto",
+      "resumeObj": "Retomar objeto"
     },
     "heightmap": {
       "menuCaption": "Mapa de Altura",

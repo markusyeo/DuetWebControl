@@ -247,7 +247,8 @@
       "prompt": "En az bir ürün yazılımı güncellemesi yüklediniz. Onları şimdi yüklemek ister misiniz?",
       "resetPrompt": "Genişletme kartı güncellemelerini yeni yüklediniz. \nÖnceki yapılandırmayı geri yüklemek için ana denetleyiciyi yeniden başlatmak istiyor musunuz?",
       "resetTitle": "Ürün yazılımı sıfırlansın mı?",
-      "sbcWarning": "Makinenizi SBC modunda çalıştırıyorsunuz. \nLütfen donanım yazılımını yalnızca donanım yazılımı geliştiricileri tarafından tavsiye edilirse DWC kullanarak yükseltin."
+      "sbcWarning": "Makinenizi SBC modunda çalıştırıyorsunuz. \nLütfen donanım yazılımını yalnızca donanım yazılımı geliştiricileri tarafından tavsiye edilirse DWC kullanarak yükseltin.",
+      "updateWiFiFirmware": "Birlikte verilen WiFi Firmware Güncellemesini yükleyin"
     },
     "inputRequired": "Lütfen bir değer girin",
     "numberRequired": "Lütfen geçerli bir sayı girin",
@@ -733,7 +734,8 @@
       "fileTransferRetryThreshold": "Dosya aktarımları için yeniden deneme eşiği ({0})",
       "crcUploads": "Yüklemeler için CRC32 sağlama toplamlarını kullanın",
       "unavailable": "Kullanılabilir ayar yok",
-      "updateDelay": "Güncelleme gecikmesi (ms)"
+      "updateDelay": "Güncelleme gecikmesi (ms)",
+      "retryDelay": "AJAX yeniden denemeleri arasında beklenecek süre (ms)"
     },
     "settingsElectronics": {
       "caption": "Elektronik",
@@ -744,7 +746,8 @@
       "updateNote": "Not: Güncellemeleri Sistem sayfasına yükleyebilirsiniz.",
       "dsfVersion": "DSF Sürümü: {0}",
       "notConnected": "(bağlı değil)",
-      "dwcVersion": "DWC Sürümü: {0}"
+      "dwcVersion": "DWC Sürümü: {0}",
+      "canAddress": "CAN adresi {0}"
     },
     "settingsEndstops": {
       "caption": "Endstops",
@@ -820,7 +823,8 @@
       "probe": "Z-Probu|Z-Probları",
       "noStatus": "Durum yok",
       "extrusionRate": "Ekstrüzyon Oranı",
-      "volumetricFlow": "Hacimsel akış hızı"
+      "volumetricFlow": "Hacimsel akış hızı",
+      "virtualEPos": "Sanal Ekstruder Konumu"
     },
     "tools": {
       "caption": "Takımlar",
@@ -1026,7 +1030,9 @@
       "showWorkplace": "İşyerini Göster",
       "zBelt": "Z Kayışı",
       "perimeterOnly": "Yalnızca Çevre",
-      "progressMode": "İlerleme Modu"
+      "progressMode": "İlerleme Modu",
+      "cancelObj": "Nesneyi İptal Et",
+      "resumeObj": "Nesneyi Devam Ettir"
     }
   },
   "pluginPermissions": {

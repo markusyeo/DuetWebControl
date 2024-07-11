@@ -1,6 +1,6 @@
 {
   "$vuetify": {
-    "badge": "Kenteken",
+    "badge": "Badge",
     "calendar": {
       "moreEvents": "{0} meer"
     },
@@ -11,15 +11,15 @@
       "next": "Volgende visueel",
       "prev": "Vorige visueel"
     },
-    "close": "Dichtbij",
+    "close": "Sluiten",
     "dataFooter": {
       "firstPage": "Eerste pagina",
       "itemsPerPageAll": "Alle",
       "itemsPerPageText": "Artikelen per pagina:",
       "lastPage": "Laatste pagina",
-      "nextPage": "Volgende bladzijde",
+      "nextPage": "Volgende pagina",
       "pageText": "{0}-{1} van {2}",
-      "prevPage": "Vorige bladzijde"
+      "prevPage": "Vorige pagina"
     },
     "dataIterator": {
       "loadingText": "Artikelen laden...",
@@ -46,8 +46,8 @@
     },
     "noDataText": "Geen gegevens beschikbaar",
     "timePicker": {
-      "am": "BEN",
-      "pm": "P.M"
+      "am": "AM",
+      "pm": "PM"
     }
   },
   "button": {
@@ -62,11 +62,11 @@
     },
     "emergencyStop": {
       "caption": "Noodstop",
-      "title": "Een onmiddellijke softwarereset afdwingen (M112 M999)"
+      "title": "Een onmiddellijke software reset afdwingen (M112 M999)"
     },
     "home": {
-      "caption": "Thuis {0}",
-      "captionAll": "Thuis Alles",
+      "caption": "Home {0}",
+      "captionAll": "Home Alles",
       "title": "Startpunt van de {0}-as (G28 {0})",
       "titleAll": "Home alle assen (G28)"
     },
@@ -74,7 +74,7 @@
       "caption": "Nieuwe map"
     },
     "newFilament": {
-      "caption": "Nieuwe gloeidraad"
+      "caption": "Nieuwe filament"
     },
     "newFile": {
       "caption": "Nieuw bestand"
@@ -180,7 +180,7 @@
     },
     "duplicateFilament": {
       "prompt": "Voer een naam in voor de filamentkopie:",
-      "title": "Dubbele gloeidraad"
+      "title": "Dubbele filament"
     },
     "editExtrusionAmount": {
       "prompt": "Voer een nieuw bedrag in voor de aangeklikte knop:",
@@ -197,8 +197,8 @@
     "filament": {
       "noFilaments": "Geen Filamenten beschikbaar",
       "prompt": "Kies een filament:",
-      "titleChange": "Vervang de gloeidraad",
-      "titleLoad": "Laad gloeidraad"
+      "titleChange": "Vervang de filament",
+      "titleLoad": "Laad filament"
     },
     "fileEdit": {
       "confirmClose": "Het bestand is gewijzigd. \nAls u doorgaat, gaan uw wijzigingen verloren.",
@@ -242,7 +242,7 @@
     },
     "newFilament": {
       "prompt": "Voer een naam in voor het nieuwe filament:",
-      "title": "Nieuwe gloeidraad"
+      "title": "Nieuwe filament"
     },
     "newFile": {
       "prompt": "Voer een nieuwe bestandsnaam in:",
@@ -250,7 +250,7 @@
     },
     "numberRequired": "Gelieve een geldig nummer invoeren",
     "pluginInstallation": {
-      "back": "Rug",
+      "back": "Back",
       "by": "door {0}",
       "cancel": "Annuleren",
       "checkboxDisclaimer": "Ik accepteer de risico's, installeer deze plug-in",
@@ -308,7 +308,8 @@
       "resetPrompt": "U hebt zojuist uitbreidingskaartupdates geïnstalleerd. \nWilt u de hoofdcontroller opnieuw opstarten om de vorige configuratie te herstellen?",
       "resetTitle": "Firmware resetten?",
       "sbcWarning": "U bedient uw machine in de SBC-modus. \nUpgrade de firmware alleen met behulp van DWC als dit wordt geadviseerd door de firmware-ontwikkelaars.",
-      "title": "Installeer updates?"
+      "title": "Installeer updates?",
+      "updateWiFiFirmware": "Installeer de meegeleverde WiFi-firmware-update"
     }
   },
   "directory": {
@@ -360,7 +361,7 @@
   "generic": {
     "active": "Actief",
     "cancel": "Annuleren",
-    "close": "Dichtbij",
+    "close": "sluiten",
     "error": "Fout",
     "extracting": "Extraheren",
     "heaterStates": {
@@ -385,7 +386,7 @@
     "status": {
       "busy": "Druk bezig",
       "cancelling": "Annuleren",
-      "changingTool": "Veranderend hulpmiddel",
+      "changingTool": "Veranderend gereedschap",
       "disconnected": "Losgekoppeld",
       "halted": "Gestopt",
       "idle": "Inactief",
@@ -426,7 +427,7 @@
     "simulated": "Gesimuleerd {0}, 100% voltooid",
     "simulating": "Simulatie van {0}, {1} voltooid"
   },
-  "language": "Engels",
+  "language": "Nederlands",
   "list": {
     "baseFileList": {
       "delete": "Verwijderen",
@@ -442,7 +443,7 @@
       "size": "Maat"
     },
     "eventLog": {
-      "clear": "Duidelijk",
+      "clear": "Ontruimen",
       "date": "Datum",
       "downloadCSV": "Downloaden als CSV",
       "downloadText": "Downloaden als tekst",
@@ -486,7 +487,7 @@
   "menu": {
     "control": {
       "caption": "Controle",
-      "console": "Troosten",
+      "console": "Console",
       "dashboard": "Dashboard",
       "status": "Toestand"
     },
@@ -600,7 +601,7 @@
     "atx": {
       "caption": "ATX-kracht",
       "off": "Uit",
-      "on": "Op"
+      "on": "Aan"
     },
     "babystepping": {
       "caption": "Z Babystepping",
@@ -628,10 +629,10 @@
       "toolFan": "Gereedschap ventilator"
     },
     "fans": {
-      "caption": "Fans",
+      "caption": "Ventilatoren",
       "changeVisibility": "Zichtbaarheid wijzigen",
       "fan": "Ventilator {0}",
-      "noFans": "Geen fans",
+      "noFans": "Geen ventilatoren",
       "toolFan": "Gereedschap ventilator"
     },
     "jobControl": {
@@ -669,7 +670,7 @@
     },
     "jobInfo": {
       "caption": "Job informatie",
-      "filament": "Gloeidraadgebruik:",
+      "filament": "Filamentgebruik:",
       "generatedBy": "Gegenereerd door:",
       "height": "Hoogte:",
       "layerHeight": "Laaghoogte:"
@@ -736,7 +737,8 @@
       "pingInterval": "PING-interval bij inactiviteit (ms)",
       "unavailable": "Geen instellingen beschikbaar",
       "updateDelay": "Updatevertraging (ms)",
-      "updateInterval": "Update-interval ({0})"
+      "updateInterval": "Update-interval ({0})",
+      "retryDelay": "Wachttijd tussen AJAX-pogingen (ms)"
     },
     "settingsElectronics": {
       "board": "{0}",
@@ -747,7 +749,8 @@
       "dwsFirmware": "Duet wifi-serverversie: {0}",
       "firmware": "Firmware: {0} ({1})",
       "notConnected": "(niet verbonden)",
-      "updateNote": "Opmerking: u kunt updates installeren op de systeempagina."
+      "updateNote": "Opmerking: u kunt updates installeren op de systeempagina.",
+      "canAddress": "CAN-adres {0}"
     },
     "settingsEndstops": {
       "caption": "Eindstops",
@@ -806,10 +809,10 @@
       "direction": "Richting",
       "forward": "vooruit",
       "off": "Uit",
-      "on": "Op",
+      "on": "Aan",
       "reverse": "achteruit",
       "setRPM": "Stel het toerental in",
-      "spindle": "Spil",
+      "spindle": "Spindel",
       "title": "Spindels"
     },
     "status": {
@@ -831,7 +834,8 @@
       "topSpeed": "Top snelheid",
       "v12": "V12",
       "vIn": "Vin",
-      "volumetricFlow": "Volumestroom"
+      "volumetricFlow": "Volumestroom",
+      "virtualEPos": "Virtuele extruderpositie"
     },
     "tools": {
       "active": "Actief",
@@ -839,10 +843,10 @@
       "allChambers": "Alle kamers",
       "bed": "Bed {0}",
       "beds": "Bedden",
-      "caption": "Hulpmiddelen",
+      "caption": "Gereedschap",
       "chamber": "Kamer {0}",
       "chambers": "Kamers",
-      "changeFilament": "Vervang de gloeidraad",
+      "changeFilament": "Vervang de filament",
       "controlHeaters": "Controle verwarmingen",
       "current": "Huidig",
       "extra": {
@@ -854,7 +858,7 @@
         "value": "Waarde"
       },
       "heater": "Verwarming {0}",
-      "loadFilament": "Laad gloeidraad",
+      "loadFilament": "Laad filament",
       "noTools": "Geen gereedschap",
       "setActiveTemperatures": "Stel actieve temperaturen in",
       "setBedTemperatures": "Bedtemperaturen instellen",
@@ -862,7 +866,7 @@
       "setStandbyTemperatures": "Standby-temperaturen instellen",
       "setToolTemperatures": "Gereedschapstemperaturen instellen",
       "standby": "Stand-by",
-      "tool": "Hulpmiddel {0}",
+      "tool": "Gereedschap {0}",
       "turnEverythingOff": "Schakel alles uit",
       "unloadFilament": "Filament ontladen"
     },
@@ -907,7 +911,7 @@
       "amplitudes": "Amplitudes",
       "analysis": "Frequentie Analyse",
       "analyze": "Analyseren",
-      "back": "Rug",
+      "back": "Back",
       "chartCaption": "Versnellingsmonsters",
       "end": "Einde",
       "frequency": "Frequentie (in Hz)",
@@ -1020,7 +1024,9 @@
       "viewGCode": "G-Code bekijken",
       "volume": "Volume",
       "zBelt": "Z-riem",
-      "zBeltAngle": "Z-riem portaalhoek"
+      "zBeltAngle": "Z-riem portaalhoek",
+      "cancelObj": "Object annuleren",
+      "resumeObj": "Hervat object"
     },
     "heightmap": {
       "area": "Sondegebied: {0}",
