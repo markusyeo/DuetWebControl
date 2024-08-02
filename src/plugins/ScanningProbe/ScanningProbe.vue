@@ -104,10 +104,8 @@ export default {
     },
   },
   methods: {
-    updateChartData() {},
   },
   mounted() {
-    this.updateChartData();
   },
 };
 </script>
